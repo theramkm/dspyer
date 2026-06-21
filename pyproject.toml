@@ -1,0 +1,36 @@
+[project]
+name = "dspyer"
+version = "0.1.0"
+description = "A transpiler from stateful imperative workflows to declarative DSPy programs"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "dspy-ai>=2.5.0",
+    "pydantic>=2.0.0,<3.0.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pytest-cov>=4.1.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_unused_configs = true
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+addopts = "--cov=dspy_transpiler --cov-report=term-missing"

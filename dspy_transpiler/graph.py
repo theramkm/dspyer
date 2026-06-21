@@ -1,0 +1,89 @@
+from typing import Any, Callable, Dict, Optional, Tuple, Type, Union
+
+from pydantic import BaseModel
+
+
+class StatefulNode:
+    """
+    Defines a stateful execution node in the agent topology.
+    Contains instructions, expected input Pydantic schemas, and expected output Pydantic schemas.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        input_model: Type[BaseModel],
+        output_model: Type[BaseModel],
+        instructions: Optional[str] = None,
+    ):
+        self.name = name
+        self.input_model = input_model
+        self.output_model = output_model
+        self.instructions = instructions
+
+
+class Graph:
+    """
+    Represents the agent execution topology.
+    Tracks nodes, linear edges, and routing connections.
+    """
+
+    def __init__(self):
+        self.nodes: Dict[str, StatefulNode] = {}
+        self.edges: Dict[str, str] = {}  # Source node -> Destination node mapping
+        self.conditional_edges: Dict[
+            str, Tuple[Union[Callable[[Dict[str, Any]], str], StatefulNode], Dict[str, str]]
+        ] = {}
+        self.entry_point: Optional[str] = None
+
+    def add_node(self, node: StatefulNode) -> None:
+        """Registers a stateful node in the graph."""
+        if node.name in self.nodes:
+            raise ValueError(f"Node with name '{node.name}' already exists in the graph.")
+        self.nodes[node.name] = node
+
+    def set_entry_point(self, name: str) -> None:
+        """Sets the starting node of the execution graph."""
+        if name not in self.nodes:
+            raise ValueError(f"Cannot set entry point to '{name}'; node is not registered.")
+        self.entry_point = name
+
+    def add_edge(self, source: str, destination: str) -> None:
+        """Connects two nodes statically."""
+        if source not in self.nodes:
+            raise ValueError(f"Source node '{source}' must be registered before creating an edge.")
+        if destination not in self.nodes:
+            raise ValueError(
+                f"Destination node '{destination}' must be registered before creating an edge."
+            )
+        self.edges[source] = destination
+
+    def add_conditional_edges(
+        self,
+        source: str,
+        router: Union[Callable[[Dict[str, Any]], str], StatefulNode],
+        path_map: Dict[str, str],
+    ) -> None:
+        """
+        Registers a conditional routing point from a source node.
+        'router' can be a python callable or a StatefulNode.
+        'path_map' maps router outcomes to destination nodes.
+        """
+        if source not in self.nodes:
+            raise ValueError(
+                f"Source node '{source}' must be registered before adding conditional edges."
+            )
+
+        # Verify destinations in path_map are registered
+        for path_name, destination in path_map.items():
+            if destination not in self.nodes:
+                raise ValueError(
+                    f"Destination node '{destination}' in path '{path_name}' must be registered."
+                )
+
+        # If the router is a StatefulNode, automatically register it if needed
+        if isinstance(router, StatefulNode):
+            if router.name not in self.nodes:
+                self.add_node(router)
+
+        self.conditional_edges[source] = (router, path_map)
