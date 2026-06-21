@@ -1,86 +1,113 @@
-# dspyer
+# ⚡ dspyer
 
-An open-source Python library that transpiles stateful, imperative agent workflows (like LangGraph, CrewAI, or PydanticAI state machines) into declarative, optimizable DSPy programs (Modules, Signatures, and Pipelines).
+> **Transpile imperative agent workflows (LangGraph, PydanticAI) into declarative, auto-optimizable DSPy programs.**
 
-## Features
+---
 
-- **Immutable State Engine**: Keeps state transitions clean and traceable using RFC 7396 JSON Merge Patch updates.
-- **State Conflict Resolution**: Supports merging divergent execution paths using configurable conflict policies (`last_write_wins`, `combine_lists`, `raise`).
-- **DirectLM Adapter**: Zero-dependency `dspy.LM` subclass wrapping Ollama, OpenAI, Anthropic, and Google Gemini with connection pooling and backoff.
-- **Self-Correction & Refinement**: Programmatically handles model schema validation errors using automatic, natural-language feedback refinement loops.
-- **Refinement tracking**: Counts correction loops during forward execution passes to allow joint-loss optimization configurations.
-- **Optimizer-Ready**: Registers dynamic predictors as discoverable module properties to integrate directly with DSPy optimizers like `BootstrapFewShot` and `MIPROv2`.
+![dspyer Transpiler Flow](assets/dspyer_flow.png)
 
-## Installation
+## 🎯 What is dspyer?
+
+In 2026, manual prompt engineering is dead. We use DSPy to statistically optimize prompt weights and instructions. But mapping complex, imperative state machines (with loops, branches, and retries) to DSPy's declarative format has been notoriously difficult.
+
+**`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **zero-shot learning optimization** via DSPy teleprompters.
+
+---
+
+## 🚀 Quick Start in 60 Seconds
+
+### 1. Install
 
 ```bash
 pip install .
 ```
 
-## Quick Start
+### 2. Define your steps and graph
 
 ```python
-from dspy_transpiler.graph import StatefulNode, Graph
-from dspy_transpiler.compiler import AgentTranspiler
+import dspy
 from pydantic import BaseModel, Field
+from dspy_transpiler.graph import Graph, StatefulNode
+from dspy_transpiler.compiler import AgentTranspiler
 
-# Define Step Schemas
+# Define I/O schemas for your steps
 class InputSchema(BaseModel):
-    raw_text: str = Field(description="Raw source text to parse")
+    raw_text: str = Field(description="Raw query from the customer")
 
 class OutputSchema(BaseModel):
-    extracted_name: str = Field(description="Name extracted from raw text")
+    intent: str = Field(description="Support, Sales, or General Info")
 
-# Define Workflow Step
+# Declare your agent node
 node = StatefulNode(
-    name="Extractor",
+    name="Classifier",
     input_model=InputSchema,
     output_model=OutputSchema,
+    instructions="Identify the customer's primary intent."
 )
 
-# Build Graph
+# Build the execution graph
 graph = Graph()
 graph.add_node(node)
-graph.set_entry_point("Extractor")
+graph.set_entry_point("Classifier")
 
-# Transpile to DSPy Module
+# ⚡ Transpile to a declarative DSPy module
 program = AgentTranspiler.compile(graph)
 
-# Execute with state inputs
-result = program(raw_text="Hello, my name is John Doe.")
+# Configure your backend model
+lm = dspy.LM("openai/gpt-4o-mini")
+dspy.configure(lm=lm)
+
+# Run the program!
+result = program(raw_text="I want to upgrade my subscription plan.")
 print(result)
 ```
 
-## Advanced Features
+---
 
-### 1. State Conflict Resolution Merging
-You can merge two states (e.g. from parallel execution branches) using:
+## 💎 Elite 2026 Features
+
+### 🔄 1. Dynamic Validation & Self-Correction Loops
+If your model output fails Pydantic schema validation, `dspyer` automatically initiates a correction retry loop, generating natural-language feedback describing the validation failure, and prompting the model to repair its response.
+
+### 🔀 2. State Conflict Resolution Merging
+Execute parallel paths concurrently, then reconcile diverging dictionaries cleanly using RFC 7396 JSON Merge Patch policies:
 ```python
-merged_state = state_a.merge(state_b, policy="combine_lists")
+# Reconcile diverging state branches (concatenates list elements, resolves other keys)
+merged = state_a.merge(state_b, policy="combine_lists")
 ```
-Supported policies:
-- `"last_write_wins"` (default): Replaces conflicting values with values from the merged state.
-- `"combine_lists"`: Concatenates lists under the same key. Mismatches of other types fall back to `last_write_wins`.
-- `"raise"`: Raises a `ValueError` if a key exists in both states with mismatching values.
 
-### 2. Zero-Dependency DirectLM Adapter
-Use the `DirectLM` class to interface with multiple LLM providers natively through DSPy without heavy packages:
+### 🏎️ 3. Zero-Dependency `DirectLM` Adapter
+Ditch heavy API packaging (like LiteLLM). Connect directly to Ollama, OpenAI, Anthropic, and Google Gemini with built-in async connection pooling and jittered backoff:
 ```python
-import dspy
 from dspy_transpiler.compiler import DirectLM
 
-# Configure DirectLM as global backend
 lm = DirectLM(model="google/gemini-2.5-flash")
 dspy.configure(lm=lm)
 ```
 
-### 3. Refinement Loss Optimization
-Each transpiled program tracks retries and step counts. The returned output dictionary contains a `_metadata` payload:
+### 📈 4. Refinement Loss Metric Logging
+Each compiled module records the number of self-correction steps and path steps taken, returning this metadata under `_metadata`:
 ```python
-result = program(raw_text="Test prompt")
 metadata = result["_metadata"]
-
-# Optimize for high-accuracy and low-latency
-refinement_retries = metadata["refinement_steps_taken"]
-steps_taken = metadata["step_count"]
+print(f"Correction retries: {metadata['refinement_steps_taken']}")
+print(f"Total steps run: {metadata['step_count']}")
 ```
+*Use this metrics payload as a penalty term in your optimizer loss function to optimize for low latency and high accuracy.*
+
+---
+
+## 🎨 Advanced Example: Loops & Parallel Branches
+
+Want to see complex cycles and parallel execution in action? Run our pre-packaged script:
+
+```bash
+uv run examples/run_parallel_loop.py
+```
+
+This runs a parser-router feedback loop, splits execution into concurrent sentiment-analysis and tag-extraction threads, and merges the outputs.
+
+---
+
+## 🛡️ License
+
+This project is licensed under the [GNU General Public License v3](LICENSE).
