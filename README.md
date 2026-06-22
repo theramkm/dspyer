@@ -14,7 +14,7 @@
 
 In modern AI engineering, manual prompt engineering is dead. We use DSPy to statistically optimize prompt weights and instructions. But mapping complex, imperative state machines (with loops, branches, and retries) to DSPy's declarative format has been notoriously difficult.
 
-**`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **zero-shot learning optimization** via DSPy teleprompters.
+**`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **few-shot prompt optimization** via DSPy teleprompters.
 
 ### 🤝 The LangGraph & PydanticAI Bridge (Our USP)
 
@@ -196,7 +196,7 @@ To run this recipe locally:
 ```bash
 uv run examples/run_rag_verifier.py
 ```
-*Code reference:* [examples/run_rag_verifier.py](file:///Users/ram/play/dspyer/examples/run_rag_verifier.py)
+*Code reference:* [examples/run_rag_verifier.py](examples/run_rag_verifier.py)
 
 ### 🎯 2. DSPy Prompt Optimization Pipeline
 A script that runs DSPy's `BootstrapFewShot` teleprompter to optimize the prompts of a transpiled agent program, demonstrating the core value proposition of `dspyer`.
@@ -205,7 +205,7 @@ To run this recipe locally:
 ```bash
 uv run examples/optimize_agent_prompt.py
 ```
-*Code reference:* [examples/optimize_agent_prompt.py](file:///Users/ram/play/dspyer/examples/optimize_agent_prompt.py)
+*Code reference:* [examples/optimize_agent_prompt.py](examples/optimize_agent_prompt.py)
 
 ### 🔀 3. Loops & Concurrent Parallel Branches
 Executes complex parallel paths concurrently, splits execution into sentiment analysis and tag extraction, and reconciles state branches using custom merge policies.
@@ -214,7 +214,7 @@ To run this recipe locally:
 ```bash
 uv run examples/run_parallel_loop.py
 ```
-*Code reference:* [examples/run_parallel_loop.py](file:///Users/ram/play/dspyer/examples/run_parallel_loop.py)
+*Code reference:* [examples/run_parallel_loop.py](examples/run_parallel_loop.py)
 
 ---
 
@@ -301,6 +301,9 @@ graph.add_conditional_edges(
 ## 📊 Telemetry & Visualization Guide
 
 Visualize agent execution, transpilation flow, and validator loop cycles inside **Arize Phoenix**, **Langfuse**, or **Jaeger** with OpenTelemetry tracing.
+
+> [!NOTE]
+> **Trace Sources**: `openinference.instrumentation.dspy.DSPyInstrumentor` instruments and traces the internal DSPy signature/model-level execution spans. `dspyer` emits its own native execution spans separately (under the standard `dspyer` tracer namespace) to trace graph-level step transitions and routing.
 
 ```python
 from openinference.instrumentation.dspy import DSPyInstrumentor

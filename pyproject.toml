@@ -9,6 +9,13 @@ dependencies = [
     "pydantic>=2.0.0,<3.0.0",
 ]
 
+[project.optional-dependencies]
+otel = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+]
+
+
 [dependency-groups]
 dev = [
     "pytest>=8.0.0",

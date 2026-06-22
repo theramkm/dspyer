@@ -95,11 +95,25 @@ class DirectClient:
             await self._async_client.aclose()
             self._async_client = None
 
+    async def __aenter__(self):
+        """Support for async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Support for async context manager."""
+        await self.aclose()
+
     def __del__(self):
         try:
             self.close()
         except Exception:
             pass
+        if self._async_client is not None:
+            logger.warning(
+                "DirectClient connection pool leak detected: "
+                "The async client was not closed. Please call await client.aclose() "
+                "or use 'async with DirectClient(...) as client' context manager."
+            )
 
     def _get_request_details(
         self, prompt: str, system_prompt: Optional[str] = None
@@ -312,6 +326,14 @@ class DirectLM(dspy.BaseLM):
             max_network_retries=max_network_retries,
             base_delay=base_delay,
         )
+
+    async def __aenter__(self):
+        """Support for async context manager."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Support for async context manager."""
+        await self.client.aclose()
 
     def forward(
         self, prompt: str | None = None, messages: list[dict[str, Any]] | None = None, **kwargs
@@ -553,6 +575,16 @@ class TranspiledAgentProgram(dspy.Module):
         self.conditional_edges = graph.conditional_edges
         self._nodes_map = graph.nodes
         self._last_refinement_steps_taken = 0
+
+        # Validate that no node's input model has fields colliding with reserved execution control keywords
+        reserved = {"max_retries", "max_steps", "on_loop_limit"}
+        for node in graph.nodes.values():
+            for field in node.input_model.model_fields.keys():
+                if field in reserved:
+                    raise ValueError(
+                        f"Field name '{field}' in input model of node '{node.name}' is reserved. "
+                        f"Please rename it to avoid collision with graph execution control parameters."
+                    )
 
         # Statically bind predictors and refiners for ALL registered nodes
         for node in graph.nodes.values():

@@ -748,3 +748,60 @@ def test_telemetry_span_otel_integration(monkeypatch):
     # Clean up sys.modules after test
     sys.modules.pop("opentelemetry", None)
     sys.modules.pop("opentelemetry.trace", None)
+
+
+def test_graph_compilation_collision():
+    from pydantic import BaseModel, Field
+
+    from dspy_transpiler.compiler import AgentTranspiler
+    from dspy_transpiler.graph import Graph, StatefulNode
+
+    class CollidingInput(BaseModel):
+        max_retries: int = Field(description="Reserved collision name")
+
+    class NormalOutput(BaseModel):
+        val: str
+
+    node = StatefulNode(
+        name="CollidingNode",
+        input_model=CollidingInput,
+        output_model=NormalOutput,
+    )
+
+    graph = Graph()
+    graph.add_node(node)
+    graph.set_entry_point("CollidingNode")
+
+    with pytest.raises(ValueError) as excinfo:
+        AgentTranspiler.compile(graph)
+
+    assert "Field name 'max_retries' in input model of node 'CollidingNode' is reserved." in str(
+        excinfo.value
+    )
+
+
+@pytest.mark.asyncio
+async def test_direct_client_async_context_manager(monkeypatch):
+    from dspy_transpiler.compiler import DirectClient
+
+    client = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")
+
+    # Retrieve and mock the aclose method on the internal async client
+    async_client = client._get_async_client()
+
+    close_called = False
+    original_aclose = async_client.aclose
+
+    async def mock_aclose():
+        nonlocal close_called
+        close_called = True
+        await original_aclose()
+
+    monkeypatch.setattr(async_client, "aclose", mock_aclose)
+
+    async with client as ctx:
+        assert ctx is client
+        assert client._async_client is not None
+
+    assert client._async_client is None
+    assert close_called is True
