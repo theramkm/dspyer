@@ -431,6 +431,37 @@ _refinement_steps: contextvars.ContextVar[int] = contextvars.ContextVar(
 )
 
 
+class GraphExecutionError(RuntimeError):
+    """
+    Exception raised when a graph node fails validation or execution.
+    Provides context-rich diagnostic information to debug leaky abstractions.
+    """
+
+    def __init__(
+        self,
+        node_name: str,
+        inputs: Dict[str, Any],
+        raw_output: Any,
+        error_feedback: str,
+        retries: int,
+        original_exception: Optional[Exception] = None,
+    ):
+        self.node_name = node_name
+        self.inputs = inputs
+        self.raw_output = raw_output
+        self.error_feedback = error_feedback
+        self.retries = retries
+        self.original_exception = original_exception
+
+        msg = (
+            f"Execution failed at graph node '{node_name}' after {retries} retries.\n"
+            f"  - Node Inputs: {inputs}\n"
+            f"  - Raw Completion Output: {raw_output}\n"
+            f"  - Validation/Execution Error: {error_feedback}"
+        )
+        super().__init__(msg)
+
+
 class TranspiledAgentProgram(dspy.Module):
     """
     A dynamically compiled, optimizable DSPy Module generated from
@@ -505,7 +536,18 @@ class TranspiledAgentProgram(dspy.Module):
         # Trace execution of this node
         with trace_span(f"node.{node.name}", node_inputs) as span:
             # Execute initial attempt
-            output_prediction = predictor(**node_inputs)
+            try:
+                output_prediction = predictor(**node_inputs)
+            except Exception as pred_err:
+                span.set_status("ERROR", str(pred_err))
+                raise GraphExecutionError(
+                    node_name=node.name,
+                    inputs=node_inputs,
+                    raw_output=None,
+                    error_feedback=str(pred_err),
+                    retries=0,
+                    original_exception=pred_err,
+                ) from pred_err
 
             attempt = 0
             while True:
@@ -555,9 +597,14 @@ class TranspiledAgentProgram(dspy.Module):
 
                     if attempt > max_retries:
                         span.set_status("ERROR", str(validation_err))
-                        raise ValueError(
-                            f"Validation failed at node '{node.name}' after {max_retries} retries: "
-                            f"{format_validation_error(validation_err)}"
+                        feedback = format_validation_error(validation_err)
+                        raise GraphExecutionError(
+                            node_name=node.name,
+                            inputs=node_inputs,
+                            raw_output=raw_outputs,
+                            error_feedback=feedback,
+                            retries=max_retries,
+                            original_exception=validation_err,
                         ) from validation_err
 
                     # Format feedback and prepare refine inputs
@@ -573,7 +620,18 @@ class TranspiledAgentProgram(dspy.Module):
                     refine_inputs["error_feedback"] = feedback
 
                     # Execute refiner
-                    output_prediction = refiner(**refine_inputs)
+                    try:
+                        output_prediction = refiner(**refine_inputs)
+                    except Exception as refine_err:
+                        span.set_status("ERROR", str(refine_err))
+                        raise GraphExecutionError(
+                            node_name=node.name,
+                            inputs=node_inputs,
+                            raw_output=raw_outputs,
+                            error_feedback=str(refine_err),
+                            retries=attempt,
+                            original_exception=refine_err,
+                        ) from refine_err
         return state
 
     def forward(

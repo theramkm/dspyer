@@ -110,4 +110,5 @@ This runs a parser-router feedback loop, splits execution into concurrent sentim
 
 ## 🛡️ License
 
-This project is licensed under the [GNU General Public License v3](LICENSE).
+This project is licensed under the [Apache License 2.0](LICENSE).
+

@@ -4,7 +4,7 @@ from typing import Any, Dict
 import pytest
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler
+from dspy_transpiler.compiler import AgentTranspiler, GraphExecutionError
 from dspy_transpiler.graph import Graph, StatefulNode
 
 
@@ -121,10 +121,10 @@ def test_compiler_forward_exhausted_retries(monkeypatch):
     monkeypatch.setattr(program, "predictor_NodeA", mock_predict_or_refine)
     monkeypatch.setattr(program, "refiner_NodeA", mock_predict_or_refine)
 
-    with pytest.raises(ValueError) as excinfo:
+    with pytest.raises(GraphExecutionError) as excinfo:
         program(input_text="hello", max_retries=2)
 
-    assert "Validation failed at node 'NodeA' after 2 retries" in str(excinfo.value)
+    assert "Execution failed at graph node 'NodeA' after 2 retries" in str(excinfo.value)
 
 
 def test_compiler_forward_with_python_router(monkeypatch):
