@@ -1,6 +1,14 @@
 # ⚡ dspyer
 
-> **Transpile imperative agent workflows (LangGraph, PydanticAI) into declarative, auto-optimizable DSPy programs.**
+> **Transpile stateful, imperative graph topologies into declarative, auto-optimizable DSPy modules.**
+
+
+[![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
+[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
 
 ---
 
@@ -18,8 +26,18 @@ In 2026, manual prompt engineering is dead. We use DSPy to statistically optimiz
 
 ### 1. Install
 
+For modern **uv** workflows (Recommended):
 ```bash
-pip install .
+# Add as a dependency to your current project:
+uv add git+https://github.com/theramkm/dspyer.git
+
+# Or install locally in editable mode:
+uv pip install -e .
+```
+
+For legacy **pip** workflows:
+```bash
+pip install -e .
 ```
 
 ### 2. Define your steps and graph
@@ -93,6 +111,51 @@ print(f"Correction retries: {metadata['refinement_steps_taken']}")
 print(f"Total steps run: {metadata['step_count']}")
 ```
 *Use this metrics payload as a penalty term in your optimizer loss function to optimize for low latency and high accuracy.*
+
+---
+
+## 🗺️ Mapping Framework Topologies (LangGraph / PydanticAI)
+
+`dspyer` compiles a custom stateful `Graph` architecture. You can easily map your existing workflows from LangGraph or PydanticAI onto `dspyer` using the following patterns:
+
+### 1. LangGraph Nodes to StatefulNodes
+In LangGraph, nodes are functions that receive state and return state patches. In `dspyer`, nodes are declared with explicit Pydantic `input_model` and `output_model` boundaries to enable DSPy-level optimizations:
+
+```python
+# 1. Declare Pydantic boundary models
+class SearchInput(BaseModel):
+    query: str
+
+class SearchOutput(BaseModel):
+    results: list[str]
+
+# 2. Declare the StatefulNode
+search_node = StatefulNode(
+    name="WebSearch",
+    input_model=SearchInput,
+    output_model=SearchOutput,
+    instructions="Query search engines to resolve user query details."
+)
+
+# 3. Add to Graph
+graph.add_node(search_node)
+```
+
+### 2. LangGraph Conditional Edges to Router Nodes
+In LangGraph, conditional routing functions route based on the state. You can translate this directly into `dspyer` using python callables as routers:
+
+```python
+def check_relevance_router(state: dict) -> str:
+    if len(state.get("results", [])) > 0:
+        return "proceed"
+    return "retry"
+
+graph.add_conditional_edges(
+    "WebSearch",
+    check_relevance_router,
+    {"proceed": "SummarizerNode", "retry": "WebSearch"}
+)
+```
 
 ---
 

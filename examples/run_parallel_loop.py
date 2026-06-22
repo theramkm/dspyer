@@ -75,20 +75,45 @@ class LoopAndParallelMockLM(dspy.LM):
 
             prompt_str += " " + json.dumps(messages)
 
+        is_chat = "[[ ##" in prompt_str
+
         if "Parse raw text feedback into a list of individual queries" in prompt_str:
+            if "failed_output" in prompt_str or "error_feedback" in prompt_str:
+                if is_chat:
+                    content = '[[ ## items ## ]]\n["Alice is happy with product", "Bob is frustrated with shipping"]\n\n[[ ## confidence ## ]]\n0.95\n\n[[ ## completed ## ]]'
+                else:
+                    content = '{"items": ["Alice is happy with product", "Bob is frustrated with shipping"], "confidence": 0.95}'
+                return MockCompletionResult(content, self.model)
+
+            # Predictor step iteration call
             self.extractor_calls += 1
             if self.extractor_calls == 1:
                 # Return low confidence to trigger the confidence router loop back
-                content = '{"items": ["Alice is happy"], "confidence": 0.5}'
+                if is_chat:
+                    content = '[[ ## items ## ]]\n["Alice is happy"]\n\n[[ ## confidence ## ]]\n0.5\n\n[[ ## completed ## ]]'
+                else:
+                    content = '{"items": ["Alice is happy"], "confidence": 0.5}'
             else:
                 # Return high confidence on subsequent attempts
-                content = '{"items": ["Alice is happy with product", "Bob is frustrated with shipping"], "confidence": 0.95}'
+                if is_chat:
+                    content = '[[ ## items ## ]]\n["Alice is happy with product", "Bob is frustrated with shipping"]\n\n[[ ## confidence ## ]]\n0.95\n\n[[ ## completed ## ]]'
+                else:
+                    content = '{"items": ["Alice is happy with product", "Bob is frustrated with shipping"], "confidence": 0.95}'
         elif "Confirm the extraction steps are complete" in prompt_str:
-            content = '{"status": "done"}'
+            if is_chat:
+                content = '[[ ## status ## ]]\ndone\n\n[[ ## completed ## ]]'
+            else:
+                content = '{"status": "done"}'
         elif "Analyze sentiment of each input query" in prompt_str:
-            content = '{"sentiments": ["Positive", "Negative"]}'
+            if is_chat:
+                content = '[[ ## sentiments ## ]]\n["Positive", "Negative"]\n\n[[ ## completed ## ]]'
+            else:
+                content = '{"sentiments": ["Positive", "Negative"]}'
         elif "Extract relevant category tags for each input query" in prompt_str:
-            content = '{"tags": ["product-feedback", "shipping-issue"]}'
+            if is_chat:
+                content = '[[ ## tags ## ]]\n["product-feedback", "shipping-issue"]\n\n[[ ## completed ## ]]'
+            else:
+                content = '{"tags": ["product-feedback", "shipping-issue"]}'
         else:
             content = '{"error": "Unknown step"}'
 
@@ -224,6 +249,11 @@ def main():
 
     merged_state = state_s.merge(state_t, policy="combine_lists")
     final_dict = merged_state.to_dict()
+
+    # Verification: assert loop actually executed (takes at least 3 steps)
+    assert parser_result["_metadata"]["step_count"] >= 3, \
+        f"Validation Error: Parser graph feedback loop did not execute. Step count: {parser_result['_metadata']['step_count']}"
+    print("\n[+] Verification successful: feedback loop executed correctly!")
 
     print("\n[+] Final Reconciled State Output:")
     import pprint
