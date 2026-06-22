@@ -805,3 +805,86 @@ async def test_direct_client_async_context_manager(monkeypatch):
 
     assert client._async_client is None
     assert close_called is True
+
+
+def test_graph_compilation_missing_entry_point():
+    node_a = StatefulNode(
+        name="NodeA", input_model=CompilerTestInput, output_model=CompilerTestOutput
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    with pytest.raises(ValueError, match="Graph entry point must be set before compilation"):
+        AgentTranspiler.compile(graph)
+
+
+def test_graph_compilation_unreachable_warning(caplog):
+    import logging
+
+    node_a = StatefulNode(
+        name="NodeA", input_model=CompilerTestInput, output_model=CompilerTestOutput
+    )
+    node_b = StatefulNode(
+        name="NodeB", input_model=CompilerTestInput, output_model=CompilerTestOutput
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    graph.add_node(node_b)
+    graph.set_entry_point("NodeA")
+    with caplog.at_level(logging.WARNING):
+        AgentTranspiler.compile(graph)
+
+    assert any(
+        "Unreachable nodes detected in compilation graph: ['NodeB']" in rec.message
+        for rec in caplog.records
+    )
+
+
+@pytest.mark.asyncio
+async def test_direct_client_token_usage_parsing(monkeypatch):
+    from dspy_transpiler.compiler import DirectClient, DirectLM
+
+    # Test _extract_usage on OpenAI
+    client_openai = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")
+    openai_res = {"usage": {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}}
+    usage = client_openai._extract_usage(openai_res)
+    assert usage == {"prompt_tokens": 10, "completion_tokens": 20, "total_tokens": 30}
+
+    # Test Anthropic
+    client_anthropic = DirectClient(provider="anthropic", model="claude-3-opus", api_key="sk-test")
+    anthropic_res = {"usage": {"input_tokens": 15, "output_tokens": 25}}
+    usage = client_anthropic._extract_usage(anthropic_res)
+    assert usage == {"prompt_tokens": 15, "completion_tokens": 25, "total_tokens": 40}
+
+    # Test Google Gemini
+    client_gemini = DirectClient(provider="google", model="gemini-pro", api_key="sk-test")
+    gemini_res = {
+        "usageMetadata": {"promptTokenCount": 8, "candidatesTokenCount": 12, "totalTokenCount": 20}
+    }
+    usage = client_gemini._extract_usage(gemini_res)
+    assert usage == {"prompt_tokens": 8, "completion_tokens": 12, "total_tokens": 20}
+
+    # Test Ollama
+    client_ollama = DirectClient(provider="ollama", model="llama3")
+    ollama_res = {"prompt_eval_count": 5, "eval_count": 15}
+    usage = client_ollama._extract_usage(ollama_res)
+    assert usage == {"prompt_tokens": 5, "completion_tokens": 15, "total_tokens": 20}
+
+    # Verify usage integration in DirectLM
+    lm = DirectLM(model="openai/gpt-4o-mini", api_key="sk-test")
+
+    def mock_generate_sync(prompt, system_prompt=None):
+        lm.client.last_usage = {"prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33}
+        return "sync output"
+
+    async def mock_generate_async(prompt, system_prompt=None):
+        lm.client.last_usage = {"prompt_tokens": 44, "completion_tokens": 55, "total_tokens": 99}
+        return "async output"
+
+    monkeypatch.setattr(lm.client, "generate_sync", mock_generate_sync)
+    monkeypatch.setattr(lm.client, "generate_async", mock_generate_async)
+
+    res_sync = lm.forward(prompt="test prompt")
+    assert res_sync.usage == {"prompt_tokens": 11, "completion_tokens": 22, "total_tokens": 33}
+
+    res_async = await lm.aforward(prompt="test prompt")
+    assert res_async.usage == {"prompt_tokens": 44, "completion_tokens": 55, "total_tokens": 99}

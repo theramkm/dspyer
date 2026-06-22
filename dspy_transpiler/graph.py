@@ -52,7 +52,7 @@ class Graph:
         """Connects two nodes statically."""
         if source not in self.nodes:
             raise ValueError(f"Source node '{source}' must be registered before creating an edge.")
-        if destination not in self.nodes:
+        if destination not in self.nodes and destination not in ("__end__", "END"):
             raise ValueError(
                 f"Destination node '{destination}' must be registered before creating an edge."
             )
@@ -76,7 +76,7 @@ class Graph:
 
         # Verify destinations in path_map are registered
         for path_name, destination in path_map.items():
-            if destination not in self.nodes:
+            if destination not in self.nodes and destination not in ("__end__", "END"):
                 raise ValueError(
                     f"Destination node '{destination}' in path '{path_name}' must be registered."
                 )

@@ -50,6 +50,7 @@ class DirectClient:
         self.base_delay = base_delay
         self._sync_client: Optional[Any] = None
         self._async_client: Optional[Any] = None
+        self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
 
         if not HAS_HTTPX:
             warnings.warn(
@@ -195,6 +196,36 @@ class DirectClient:
                 f"Failed to parse model response: {err}. Raw response: {response_data}"
             )
 
+    def _extract_usage(self, response_data: dict) -> dict[str, int]:
+        """
+        Extracts token usage details from response JSON.
+        Returns a dict mapping keys to token counts.
+        """
+        usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+        try:
+            if self.provider == "openai" and "usage" in response_data:
+                u = response_data["usage"]
+                usage["prompt_tokens"] = u.get("prompt_tokens", 0)
+                usage["completion_tokens"] = u.get("completion_tokens", 0)
+                usage["total_tokens"] = u.get("total_tokens", 0)
+            elif self.provider == "anthropic" and "usage" in response_data:
+                u = response_data["usage"]
+                usage["prompt_tokens"] = u.get("input_tokens", 0)
+                usage["completion_tokens"] = u.get("output_tokens", 0)
+                usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+            elif self.provider == "google" and "usageMetadata" in response_data:
+                u = response_data["usageMetadata"]
+                usage["prompt_tokens"] = u.get("promptTokenCount", 0)
+                usage["completion_tokens"] = u.get("candidatesTokenCount", 0)
+                usage["total_tokens"] = u.get("totalTokenCount", 0)
+            elif self.provider == "ollama":
+                usage["prompt_tokens"] = response_data.get("prompt_eval_count", 0)
+                usage["completion_tokens"] = response_data.get("eval_count", 0)
+                usage["total_tokens"] = usage["prompt_tokens"] + usage["completion_tokens"]
+        except Exception:
+            pass
+        return usage
+
     def generate_sync(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         url, headers, payload = self._get_request_details(prompt, system_prompt)
         data = json.dumps(payload).encode("utf-8")
@@ -206,12 +237,16 @@ class DirectClient:
                     client = self._get_sync_client()
                     res = client.post(url, headers=headers, content=data)
                     res.raise_for_status()
-                    return self._extract_response(res.json())
+                    res_json = res.json()
+                    self.last_usage = self._extract_usage(res_json)
+                    return self._extract_response(res_json)
                 else:
                     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
                     with urllib.request.urlopen(req, timeout=60.0) as response:
                         res_body = response.read().decode("utf-8")
-                        return self._extract_response(json.loads(res_body))
+                        res_json = json.loads(res_body)
+                        self.last_usage = self._extract_usage(res_json)
+                        return self._extract_response(res_json)
             except Exception as e:
                 status_code = None
                 if HAS_HTTPX:
@@ -245,7 +280,9 @@ class DirectClient:
                     client = self._get_async_client()
                     res = await client.post(url, headers=headers, content=data)
                     res.raise_for_status()
-                    return self._extract_response(res.json())
+                    res_json = res.json()
+                    self.last_usage = self._extract_usage(res_json)
+                    return self._extract_response(res_json)
                 else:
                     loop = asyncio.get_event_loop()
                     return await loop.run_in_executor(
@@ -354,7 +391,9 @@ class DirectLM(dspy.BaseLM):
             user_prompt = prompt or ""
 
         content = self.client.generate_sync(user_prompt, system_prompt=system_prompt)
-        return MockCompletionResult(content, self.model)
+        res = MockCompletionResult(content, self.model)
+        res.usage = self.client.last_usage
+        return res
 
     async def aforward(
         self, prompt: str | None = None, messages: list[dict[str, Any]] | None = None, **kwargs
@@ -375,7 +414,9 @@ class DirectLM(dspy.BaseLM):
             user_prompt = prompt or ""
 
         content = await self.client.generate_async(user_prompt, system_prompt=system_prompt)
-        return MockCompletionResult(content, self.model)
+        res = MockCompletionResult(content, self.model)
+        res.usage = self.client.last_usage
+        return res
 
 
 def repair_and_parse_json(raw_text: str) -> Any:
@@ -570,6 +611,9 @@ class TranspiledAgentProgram(dspy.Module):
 
     def __init__(self, graph: Graph):
         super().__init__()
+        if graph.entry_point is None:
+            raise ValueError("Graph entry point must be set before compilation.")
+
         self.entry_point = graph.entry_point
         self.edges = graph.edges
         self.conditional_edges = graph.conditional_edges
@@ -585,6 +629,33 @@ class TranspiledAgentProgram(dspy.Module):
                         f"Field name '{field}' in input model of node '{node.name}' is reserved. "
                         f"Please rename it to avoid collision with graph execution control parameters."
                     )
+
+        # Detect unreachable nodes
+        reachable = set()
+        to_visit = [self.entry_point]
+        while to_visit:
+            curr = to_visit.pop(0)
+            if curr in reachable:
+                continue
+            if curr in ("__end__", "END"):
+                continue
+            reachable.add(curr)
+            # Normal static edges
+            if curr in self.edges:
+                to_visit.append(self.edges[curr])
+            # Conditional router edges
+            if curr in self.conditional_edges:
+                router, path_map = self.conditional_edges[curr]
+                for dest in path_map.values():
+                    to_visit.append(dest)
+
+        all_nodes = set(self._nodes_map.keys())
+        unreachable = all_nodes - reachable
+        if unreachable:
+            logger.warning(
+                f"Unreachable nodes detected in compilation graph: {sorted(list(unreachable))}. "
+                f"These nodes are registered but cannot be reached from the entry point '{self.entry_point}'."
+            )
 
         # Statically bind predictors and refiners for ALL registered nodes
         for node in graph.nodes.values():
@@ -760,10 +831,10 @@ class TranspiledAgentProgram(dspy.Module):
 
             state = ImmutableState(initial_state_kwargs)
 
-            current_node_name = self.entry_point
+            current_node_name: Optional[str] = self.entry_point
             step_count = 0
 
-            while current_node_name is not None:
+            while current_node_name is not None and current_node_name not in ("__end__", "END"):
                 step_count += 1
                 if step_count > max_steps:
                     msg = f"Graph execution exceeded max_steps limit of {max_steps}."

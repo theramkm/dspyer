@@ -88,6 +88,9 @@ Copy-paste this snippet to create a stateful classifier, compile it to a declara
 
 ### 1. Install
 
+> [!IMPORTANT]
+> **Pre-Release Status**: `dspyer` is currently in pre-release (`0.1.0`) and is not yet published on PyPI. Always install it directly from the GitHub repository using the commands below.
+
 ```bash
 # Add as a dependency to your project:
 uv add git+https://github.com/theramkm/dspyer.git
@@ -253,6 +256,30 @@ print(f"Total steps run: {metadata['step_count']}")
 ```
 *Use this metrics payload as a penalty term in your optimizer loss function to optimize for low latency and high accuracy.*
 
+## 🔄 Automated LangGraph Conversion (`from_langgraph`)
+
+Instead of rewriting your state machine by hand, `dspyer` provides a native topology converter. Pass your existing LangGraph `StateGraph` or `CompiledStateGraph` directly, and get a compiled, optimizable `dspyer` Program back:
+
+```python
+from langgraph.graph import StateGraph, START, END
+from dspy_transpiler import from_langgraph, AgentTranspiler
+
+# 1. Define your standard LangGraph StateGraph
+builder = StateGraph(MyStateSchema)
+builder.add_node("AgentNode", agent_function)  # Node docstring serves as instructions
+builder.add_node("ToolNode", tool_function)
+builder.add_edge(START, "AgentNode")
+builder.add_conditional_edges("AgentNode", router, {"call_tool": "ToolNode", "end": END})
+
+# 2. Convert it dynamically to a dspyer Graph
+# Unmapped nodes automatically inherit Pydantic models from MyStateSchema,
+# and use function docstrings for optimization instructions.
+dspyer_graph = from_langgraph(builder)
+
+# 3. Compile it to an optimizable DSPy Module!
+program = AgentTranspiler.compile(dspyer_graph)
+```
+
 ---
 
 ## 🗺️ Mapping Framework Topologies (LangGraph / PydanticAI)
@@ -297,6 +324,31 @@ graph.add_conditional_edges(
     {"proceed": "SummarizerNode", "retry": "WebSearch"}
 )
 ```
+
+### 3. PydanticAI Agents to StatefulNodes
+In PydanticAI, agents are declared with explicit schemas for dependencies and results. In `dspyer`, a PydanticAI Agent translates directly to a `StatefulNode` mapping the input and output result models:
+
+```python
+from pydantic import BaseModel
+from pydantic_ai import Agent
+
+# Define your PydanticAI result model
+class AgentResult(BaseModel):
+    summary: str
+    action_items: list[str]
+
+# 1. PydanticAI Agent definition
+agent = Agent('gemini-2.5-flash', result_type=AgentResult)
+
+# 2. Equivalent dspyer StatefulNode setup
+node = StatefulNode(
+    name="SummaryAgentNode",
+    input_model=InputSchema,  # Maps to the input data passed to agent.run()
+    output_model=AgentResult, # Maps to PydanticAI's result_type
+    instructions="Process the text and extract summary and action items."
+)
+```
+
 
 ## 📊 Telemetry & Visualization Guide
 
