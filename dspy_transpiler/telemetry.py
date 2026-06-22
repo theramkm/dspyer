@@ -85,12 +85,8 @@ def trace_span(
             otel_s.end()
     else:
         # Structured log fallback
-        logger.info(
-            f"[SPAN START] TraceID: {trace_id} | SpanID: {span_id} | Node: {name}"
-        )
-        logger.debug(
-            f"[SPAN DATA] TraceID: {trace_id} | SpanID: {span_id} | Inputs: {inputs}"
-        )
+        logger.info(f"[SPAN START] TraceID: {trace_id} | SpanID: {span_id} | Node: {name}")
+        logger.debug(f"[SPAN DATA] TraceID: {trace_id} | SpanID: {span_id} | Inputs: {inputs}")
         try:
             yield span
             logger.info(
