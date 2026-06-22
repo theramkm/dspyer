@@ -27,7 +27,7 @@ HAS_HTTPX = importlib.util.find_spec("httpx") is not None
 
 class DirectClient:
     """
-    Zero-dependency direct model client with optional httpx-based async connection pooling.
+    Direct model client with optional httpx-based async connection pooling (bypassing LiteLLM at runtime).
     Supports Ollama, Gemini, Claude, and OpenAI API protocols with jittered exponential backoff.
     """
 
@@ -48,6 +48,8 @@ class DirectClient:
         self.api_base = api_base
         self.max_network_retries = max_network_retries
         self.base_delay = base_delay
+        self._sync_client: Optional[Any] = None
+        self._async_client: Optional[Any] = None
 
         if not HAS_HTTPX:
             warnings.warn(
@@ -56,6 +58,48 @@ class DirectClient:
                 UserWarning,
                 stacklevel=2,
             )
+
+    def _get_sync_client(self) -> Any:
+        if not HAS_HTTPX:
+            raise RuntimeError("httpx is required for connection pooling but not installed.")
+        if self._sync_client is None:
+            import httpx
+
+            self._sync_client = httpx.Client(
+                timeout=60.0,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+        return self._sync_client
+
+    def _get_async_client(self) -> Any:
+        if not HAS_HTTPX:
+            raise RuntimeError("httpx is required for connection pooling but not installed.")
+        if self._async_client is None:
+            import httpx
+
+            self._async_client = httpx.AsyncClient(
+                timeout=60.0,
+                limits=httpx.Limits(max_keepalive_connections=10, max_connections=20),
+            )
+        return self._async_client
+
+    def close(self):
+        """Close the sync connection pool."""
+        if self._sync_client is not None:
+            self._sync_client.close()
+            self._sync_client = None
+
+    async def aclose(self):
+        """Close the async connection pool."""
+        if self._async_client is not None:
+            await self._async_client.aclose()
+            self._async_client = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
 
     def _get_request_details(
         self, prompt: str, system_prompt: Optional[str] = None
@@ -144,12 +188,10 @@ class DirectClient:
         while True:
             try:
                 if HAS_HTTPX:
-                    import httpx
-
-                    with httpx.Client(timeout=60.0) as client:
-                        res = client.post(url, headers=headers, content=data)
-                        res.raise_for_status()
-                        return self._extract_response(res.json())
+                    client = self._get_sync_client()
+                    res = client.post(url, headers=headers, content=data)
+                    res.raise_for_status()
+                    return self._extract_response(res.json())
                 else:
                     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
                     with urllib.request.urlopen(req, timeout=60.0) as response:
@@ -185,12 +227,10 @@ class DirectClient:
         while True:
             try:
                 if HAS_HTTPX:
-                    import httpx
-
-                    async with httpx.AsyncClient(timeout=60.0) as client:
-                        res = await client.post(url, headers=headers, content=data)
-                        res.raise_for_status()
-                        return self._extract_response(res.json())
+                    client = self._get_async_client()
+                    res = await client.post(url, headers=headers, content=data)
+                    res.raise_for_status()
+                    return self._extract_response(res.json())
                 else:
                     loop = asyncio.get_event_loop()
                     return await loop.run_in_executor(
@@ -212,7 +252,7 @@ class DirectClient:
                     sleep_time = (self.base_delay * (2**attempt)) + random.uniform(0, 1.0)
                     logger.warning(
                         f"DirectClient async request failed with status {status_code}. "
-                        f"Retrying in {sleep_time:.2f}s (Attempt {attempt}/{self.max_network_retries})..."
+                        f"Retrying in {sleep_time:.2f}s (Attempt {attempt}/{self.max_network_retries})...."
                     )
                     await asyncio.sleep(sleep_time)
                 else:
@@ -319,16 +359,26 @@ def repair_and_parse_json(raw_text: str) -> Any:
     Extracts, repairs, and parses JSON content from a raw string.
     Handles markdown wrappers (code blocks) and truncated JSON payloads.
     """
+    # 1. Try importing and using json-repair first on the raw text
+    try:
+        import json_repair
+
+        repaired = json_repair.repair_json(raw_text, return_objects=True)
+        if isinstance(repaired, (dict, list)):
+            return repaired
+    except Exception:
+        pass
+
     raw_text = raw_text.strip()
 
-    # 1. Clean markdown code fences if present
+    # 2. Clean markdown code fences if present
     if raw_text.startswith("```"):
         # Match ```json ... ``` or ``` ... ```
         match = re.search(r"```(?:json)?\s*(.*?)\s*```", raw_text, re.DOTALL)
         if match:
             raw_text = match.group(1).strip()
 
-    # 2. Find boundary of the first outer curly brace/bracket
+    # 3. Find boundary of the first outer curly brace/bracket
     first_brace = raw_text.find("{")
     first_bracket = raw_text.find("[")
 
@@ -342,6 +392,15 @@ def repair_and_parse_json(raw_text: str) -> Any:
         end_char = "]"
 
     if start_idx == -1:
+        # One last attempt with json-repair on the clean text before parsing
+        try:
+            import json_repair
+
+            repaired = json_repair.repair_json(raw_text, return_objects=True)
+            if isinstance(repaired, (dict, list)):
+                return repaired
+        except Exception:
+            pass
         return json.loads(raw_text)
 
     last_idx = raw_text.rfind(end_char)
@@ -355,7 +414,17 @@ def repair_and_parse_json(raw_text: str) -> Any:
     except json.JSONDecodeError:
         pass
 
-    # 4. Repair path: balance braces, quotes, and brackets
+    # 4. Try json-repair on the candidate string
+    try:
+        import json_repair
+
+        repaired = json_repair.repair_json(json_candidate, return_objects=True)
+        if isinstance(repaired, (dict, list)):
+            return repaired
+    except Exception:
+        pass
+
+    # 5. Fallback repair path: balance braces, quotes, and brackets manually
     in_quote = False
     escape = False
     clean_chars = []

@@ -530,3 +530,59 @@ def test_compiler_concurrency_isolation(monkeypatch):
     # Each execution thread should register exactly 1 refinement step without crosstalk
     for r in results:
         assert r == 1
+
+
+def test_direct_client_pooling_lifecycle():
+    import asyncio
+
+    import httpx
+
+    from dspy_transpiler.compiler import DirectClient
+
+    client = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")
+
+    # Initially, pool clients are None
+    assert client._sync_client is None
+    assert client._async_client is None
+
+    # Retrieve sync client
+    sync_client = client._get_sync_client()
+    assert isinstance(sync_client, httpx.Client)
+    assert client._sync_client is sync_client
+
+    # Repeated calls should return the same instance (pooling)
+    assert client._get_sync_client() is sync_client
+
+    # Retrieve async client
+    async_client = client._get_async_client()
+    assert isinstance(async_client, httpx.AsyncClient)
+    assert client._async_client is async_client
+    assert client._get_async_client() is async_client
+
+    # Test closing
+    client.close()
+    assert client._sync_client is None
+    # async client is still there since close() only closes sync client
+    assert client._async_client is async_client
+
+    # Test async close
+    asyncio.run(client.aclose())
+    assert client._async_client is None
+
+
+def test_json_repair_fallback_and_direct():
+    from dspy_transpiler.compiler import repair_and_parse_json
+
+    # Test direct parsing of valid json
+    assert repair_and_parse_json('{"foo": "bar"}') == {"foo": "bar"}
+
+    # Test json-repair on broken json (e.g., missing closing brace)
+    assert repair_and_parse_json('{"foo": "bar"') == {"foo": "bar"}
+
+    # Test json-repair on broken list
+    assert repair_and_parse_json("[1, 2, 3") == [1, 2, 3]
+
+    # Test json-repair with markdown fences and text around it
+    assert repair_and_parse_json('some text ```json\n{"foo": "bar"}\n``` other text') == {
+        "foo": "bar"
+    }

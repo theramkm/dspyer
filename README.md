@@ -94,8 +94,8 @@ Execute parallel paths concurrently, then reconcile diverging dictionaries clean
 merged = state_a.merge(state_b, policy="combine_lists")
 ```
 
-### 🏎️ 3. Zero-Dependency `DirectLM` Adapter
-Ditch heavy API packaging (like LiteLLM). Connect directly to Ollama, OpenAI, Anthropic, and Google Gemini with built-in async connection pooling and jittered backoff:
+### 🏎️ 3. Direct `DirectLM` Adapter (Bypassing LiteLLM)
+Bypass LiteLLM runtime layers and connect directly to Ollama, OpenAI, Anthropic, and Google Gemini using a persistent, pooled connection pool with jittered backoff:
 ```python
 from dspy_transpiler.compiler import DirectLM
 

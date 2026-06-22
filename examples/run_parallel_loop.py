@@ -101,12 +101,14 @@ class LoopAndParallelMockLM(dspy.LM):
                     content = '{"items": ["Alice is happy with product", "Bob is frustrated with shipping"], "confidence": 0.95}'
         elif "Confirm the extraction steps are complete" in prompt_str:
             if is_chat:
-                content = '[[ ## status ## ]]\ndone\n\n[[ ## completed ## ]]'
+                content = "[[ ## status ## ]]\ndone\n\n[[ ## completed ## ]]"
             else:
                 content = '{"status": "done"}'
         elif "Analyze sentiment of each input query" in prompt_str:
             if is_chat:
-                content = '[[ ## sentiments ## ]]\n["Positive", "Negative"]\n\n[[ ## completed ## ]]'
+                content = (
+                    '[[ ## sentiments ## ]]\n["Positive", "Negative"]\n\n[[ ## completed ## ]]'
+                )
             else:
                 content = '{"sentiments": ["Positive", "Negative"]}'
         elif "Extract relevant category tags for each input query" in prompt_str:
@@ -251,8 +253,9 @@ def main():
     final_dict = merged_state.to_dict()
 
     # Verification: assert loop actually executed (takes at least 3 steps)
-    assert parser_result["_metadata"]["step_count"] >= 3, \
+    assert parser_result["_metadata"]["step_count"] >= 3, (
         f"Validation Error: Parser graph feedback loop did not execute. Step count: {parser_result['_metadata']['step_count']}"
+    )
     print("\n[+] Verification successful: feedback loop executed correctly!")
 
     print("\n[+] Final Reconciled State Output:")
