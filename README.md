@@ -2,13 +2,9 @@
 
 > **Transpile stateful, imperative graph topologies into declarative, auto-optimizable DSPy modules.**
 
-
 [![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
-[![Python 3.10](https://img.shields.io/badge/python-3.10-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
-[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
-[![Python 3.13](https://img.shields.io/badge/python-3.13-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
-[![Python 3.14](https://img.shields.io/badge/python-3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Python 3.10-3.14](https://img.shields.io/badge/python-3.10--3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
+[![Colab Playground](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/theramkm/dspyer/blob/main/notebooks/dspyer_playground.ipynb)
 
 ---
 
@@ -16,31 +12,27 @@
 
 ## 🎯 What is dspyer?
 
-In 2026, manual prompt engineering is dead. We use DSPy to statistically optimize prompt weights and instructions. But mapping complex, imperative state machines (with loops, branches, and retries) to DSPy's declarative format has been notoriously difficult.
+In modern AI engineering, manual prompt engineering is dead. We use DSPy to statistically optimize prompt weights and instructions. But mapping complex, imperative state machines (with loops, branches, and retries) to DSPy's declarative format has been notoriously difficult.
 
 **`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **zero-shot learning optimization** via DSPy teleprompters.
 
 ---
 
-## 🚀 Quick Start in 60 Seconds
+## 🚀 Try It In 10 Seconds (No API Key Required)
+
+Copy-paste this snippet to create a stateful classifier, compile it to a declarative DSPy module, and run it locally using a built-in Mock LM—no credentials or network required.
 
 ### 1. Install
 
-For modern **uv** workflows (Recommended):
 ```bash
-# Add as a dependency to your current project:
+# Add as a dependency to your project:
 uv add git+https://github.com/theramkm/dspyer.git
 
-# Or install locally in editable mode:
-uv pip install -e .
+# Or install locally via pip:
+pip install git+https://github.com/theramkm/dspyer.git
 ```
 
-For legacy **pip** workflows:
-```bash
-pip install -e .
-```
-
-### 2. Define your steps and graph
+### 2. Run the Zero-Config Quickstart
 
 ```python
 import dspy
@@ -48,37 +40,117 @@ from pydantic import BaseModel, Field
 from dspy_transpiler.graph import Graph, StatefulNode
 from dspy_transpiler.compiler import AgentTranspiler
 
-# Define I/O schemas for your steps
-class InputSchema(BaseModel):
-    raw_text: str = Field(description="Raw query from the customer")
+# 1. Define input & output schemas
+class ExtractionInput(BaseModel):
+    raw_text: str = Field(description="The source text to analyze")
 
-class OutputSchema(BaseModel):
-    intent: str = Field(description="Support, Sales, or General Info")
+class ExtractionOutput(BaseModel):
+    user_name: str = Field(description="Name of the user extracted from text")
+    rough_query: str = Field(description="User query context")
 
-# Declare your agent node
-node = StatefulNode(
-    name="Classifier",
-    input_model=InputSchema,
-    output_model=OutputSchema,
-    instructions="Identify the customer's primary intent."
+class ClassificationInput(BaseModel):
+    rough_query: str = Field(description="Extracted rough query")
+
+class ClassificationOutput(BaseModel):
+    classified_intent: str = Field(description="Category intent: Support, Sales, Info")
+
+# 2. Build graph nodes
+node_extraction = StatefulNode(
+    name="EntityExtractor",
+    input_model=ExtractionInput,
+    output_model=ExtractionOutput,
+    instructions="Extract the user's name and their query context from raw text."
 )
 
-# Build the execution graph
-graph = Graph()
-graph.add_node(node)
-graph.set_entry_point("Classifier")
+node_classification = StatefulNode(
+    name="IntentClassifier",
+    input_model=ClassificationInput,
+    output_model=ClassificationOutput,
+    instructions="Classify the intent of the rough query into: Support, Sales, or Info."
+)
 
-# ⚡ Transpile to a declarative DSPy module
+# 3. Build graph topology
+graph = Graph()
+graph.add_node(node_extraction)
+graph.add_node(node_classification)
+graph.set_entry_point("EntityExtractor")
+graph.add_edge("EntityExtractor", "IntentClassifier")
+
+# 4. Transpile graph into a declarative DSPy module
 program = AgentTranspiler.compile(graph)
 
-# Configure your backend model
-lm = dspy.LM("openai/gpt-4o-mini")
-dspy.configure(lm=lm)
+# 5. Create a Mock LM to intercept LLM calls
+class QuickstartMockLM(dspy.LM):
+    def __init__(self):
+        super().__init__(model="mock-quickstart-model")
 
-# Run the program!
-result = program(raw_text="I want to upgrade my subscription plan.")
+    def forward(self, prompt=None, messages=None, **kwargs):
+        prompt_str = str(prompt or messages)
+        if "user_name" in prompt_str:
+            content = '{"user_name": "Alice", "rough_query": "buy a subscription"}'
+        elif "classified_intent" in prompt_str:
+            content = '{"classified_intent": "Sales"}'
+        else:
+            content = '{}'
+
+        class MockChoiceMessage:
+            def __init__(self, content_str):
+                self.content = content_str
+                self.role = "assistant"
+                self.reasoning_content = None
+
+        class MockChoice:
+            def __init__(self, content_str):
+                self.message = MockChoiceMessage(content_str)
+                self.finish_reason = "stop"
+                self.index = 0
+
+        class MockResult:
+            def __init__(self, content_str):
+                self.choices = [MockChoice(content_str)]
+                self.model = "mock-quickstart-model"
+                self.usage = {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+
+        return MockResult(content)
+
+# 6. Configure DSPy to use the Mock LM and run
+dspy.configure(lm=QuickstartMockLM())
+result = program(raw_text="Hello, my name is Alice. I would like to buy a subscription.")
 print(result)
 ```
+
+---
+
+## 🍳 Real-World Production Recipes
+
+We avoid toy examples. Look at our production-ready recipes to see the full capabilities of `dspyer`.
+
+### 🛡️ 1. Self-Correction & Verification Loops
+A RAG node that queries a simulated source, validates the response, and uses the dynamic validation loop to self-correct if the citation is missing or the response is empty.
+
+To run this recipe locally:
+```bash
+uv run examples/run_rag_verifier.py
+```
+*Code reference:* [examples/run_rag_verifier.py](file:///Users/ram/play/dspyer/examples/run_rag_verifier.py)
+
+### 🎯 2. DSPy Prompt Optimization Pipeline
+A script that runs DSPy's `BootstrapFewShot` teleprompter to optimize the prompts of a transpiled agent program, demonstrating the core value proposition of `dspyer`.
+
+To run this recipe locally:
+```bash
+uv run examples/optimize_agent_prompt.py
+```
+*Code reference:* [examples/optimize_agent_prompt.py](file:///Users/ram/play/dspyer/examples/optimize_agent_prompt.py)
+
+### 🔀 3. Loops & Concurrent Parallel Branches
+Executes complex parallel paths concurrently, splits execution into sentiment analysis and tag extraction, and reconciles state branches using custom merge policies.
+
+To run this recipe locally:
+```bash
+uv run examples/run_parallel_loop.py
+```
+*Code reference:* [examples/run_parallel_loop.py](file:///Users/ram/play/dspyer/examples/run_parallel_loop.py)
 
 ---
 
@@ -164,19 +236,36 @@ graph.add_conditional_edges(
 
 ---
 
-## 🎨 Advanced Example: Loops & Parallel Branches
+## 📊 Telemetry & Visualization Guide
 
-Want to see complex cycles and parallel execution in action? Run our pre-packaged script:
+Visualize agent execution, transpilation flow, and validator loop cycles inside **Arize Phoenix**, **Langfuse**, or **Jaeger** with OpenTelemetry tracing.
 
-```bash
-uv run examples/run_parallel_loop.py
+```python
+from openinference.instrumentation.dspy import DSPyInstrumentor
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+# 1. Configure OpenTelemetry Tracer pointing to your collector (e.g. Phoenix at port 6006)
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:6006/v1/traces")
+tracer_provider = TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(otlp_exporter))
+trace.set_tracer_provider(tracer_provider)
+
+# 2. Instrument DSPy module calls
+DSPyInstrumentor().instrument()
 ```
 
-This runs a parser-router feedback loop, splits execution into concurrent sentiment-analysis and tag-extraction threads, and merges the outputs.
+Launch a local Phoenix server using:
+```bash
+pip install arize-phoenix openinference-instrumentation-dspy opentelemetry-exporter-otlp
+phoenix start
+```
+Then navigate to `http://localhost:6006/` to explore interactive traces for every step execution, correction loop retry, and model signature inputs/outputs.
 
 ---
 
 ## 🛡️ License
 
 This project is licensed under the [Apache License 2.0](LICENSE).
-

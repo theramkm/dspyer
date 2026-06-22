@@ -30,6 +30,44 @@ class ClassificationOutput(BaseModel):
     classified_intent: str = Field(description="Category intent: Support, Sales, Info")
 
 
+class QuickstartMockLM(dspy.LM):
+    def __init__(self):
+        super().__init__(model="mock-quickstart-model")
+
+    def forward(self, prompt=None, messages=None, **kwargs):
+        prompt_str = str(prompt or messages)
+
+        # Identify which node/stage is executing based on schema fields in prompt/messages
+        if "user_name" in prompt_str or "raw_text" in prompt_str:
+            # EntityExtractor node
+            content = '{"user_name": "Alice", "rough_query": "buy a subscription"}'
+        elif "classified_intent" in prompt_str or "rough_query" in prompt_str:
+            # IntentClassifier node
+            content = '{"classified_intent": "Sales"}'
+        else:
+            content = "{}"
+
+        class MockChoiceMessage:
+            def __init__(self, content_str: str):
+                self.content = content_str
+                self.role = "assistant"
+                self.reasoning_content = None
+
+        class MockChoice:
+            def __init__(self, content_str: str):
+                self.message = MockChoiceMessage(content_str)
+                self.finish_reason = "stop"
+                self.index = 0
+
+        class MockResult:
+            def __init__(self, content_str: str):
+                self.choices = [MockChoice(content_str)]
+                self.model = "mock-quickstart-model"
+                self.usage = {"completion_tokens": 0, "prompt_tokens": 0, "total_tokens": 0}
+
+        return MockResult(content)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run a compiled dspyer workflow using any user-specified model backend."
@@ -52,25 +90,26 @@ def main():
 
     args = parser.parse_args()
 
-    # Enforce parameters if not set by CLI or environment
-    if not args.provider or not args.model:
+    # Check if we should fallback to Mock LM (10-second zero-config quickstart)
+    has_keys = any(
+        os.environ.get(k)
+        for k in ["OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"]
+    )
+
+    if not args.provider or not args.model or not has_keys:
         print(
-            "Error: Both --provider and --model must be specified via CLI arguments "
-            "or DSPYER_PROVIDER and DSPYER_MODEL environment variables.",
-            file=sys.stderr,
+            "[*] Automatically initializing zero-config QuickstartMockLM (no API keys detected or provider/model unspecified)..."
         )
-        sys.exit(1)
-
-    print(f"[*] Initializing model backend: {args.provider}/{args.model}...")
-
-    # Configure the DSPy model environment
-    # DSPy 2.5+ uses standard f"{provider}/{model}" strings to resolve LMs
-    try:
-        lm = dspy.LM(f"{args.provider}/{args.model}")
+        lm = QuickstartMockLM()
         dspy.configure(lm=lm)
-    except Exception as e:
-        print(f"Error configuring DSPy model: {e}", file=sys.stderr)
-        sys.exit(1)
+    else:
+        print(f"[*] Initializing model backend: {args.provider}/{args.model}...")
+        try:
+            lm = dspy.LM(f"{args.provider}/{args.model}")
+            dspy.configure(lm=lm)
+        except Exception as e:
+            print(f"Error configuring DSPy model: {e}", file=sys.stderr)
+            sys.exit(1)
 
     # 1. Declare Graph Nodes
     node_extraction = StatefulNode(
