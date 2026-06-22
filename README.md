@@ -381,6 +381,22 @@ phoenix start
 ```
 Then navigate to `http://localhost:6006/` to explore interactive traces for every step execution, correction loop retry, and model signature inputs/outputs.
 
+### 🔍 Inspecting Validation & Self-Correction Loops
+
+When a node output fails to validate against its Pydantic `output_model` schema, `dspyer` automatically logs the validation error stack trace and injects detailed structured metadata into the OpenTelemetry active span attributes. In **Arize Phoenix** or **Langfuse**, you can search for or inspect:
+
+* **`validation.failed`**: Set to `True` when a Pydantic validation exception occurs on the node.
+* **`validation.error.count`**: The number of fields that failed validation in this attempt.
+* **`validation.errors_json`**: A raw JSON array containing all Pydantic error details.
+* **`validation.error.{index}.field`**: The exact field path that failed validation (e.g., `user_profile.age`).
+* **`validation.error.{index}.message`**: The failure message (e.g., `Input should be a valid integer`).
+* **`validation.error.{index}.type`**: The Pydantic error type code (e.g., `int_parsing`).
+* **`validation.error.{index}.input`**: The original invalid value passed to that field.
+
+Additionally, retry attempts are annotated as:
+* **`retry.{attempt}.error`**: The human-readable error feedback sent back to the model for self-correction.
+* **`retry.{attempt}.failed_output`**: The raw JSON payload that failed parsing or validation.
+
 ---
 
 ## 🛡️ License

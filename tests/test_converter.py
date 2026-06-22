@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
@@ -164,3 +164,24 @@ def test_from_langgraph_execution(monkeypatch):
     assert result["processed_count"] == 2
     assert result["decision"] == "end"
     assert result["_metadata"]["step_count"] == 4
+
+
+def test_from_langgraph_node_configs_overrides():
+    builder = StateGraph(TestStateDict)
+    builder.add_node("NodeA", node_a)
+    builder.add_node("NodeB", node_b)
+    builder.add_edge(START, "NodeA")
+    builder.add_edge("NodeA", "NodeB")
+    builder.add_edge("NodeB", END)
+
+    node_configs: dict[str, dict[str, Any]] = {
+        "NodeA": {"max_retries": 5, "refine_instructions": "Verify A output strictly"},
+        "NodeB": {"max_retries": 0},
+    }
+
+    dspyer_graph = from_langgraph(builder, node_configs=node_configs)
+
+    assert dspyer_graph.nodes["NodeA"].max_retries == 5
+    assert dspyer_graph.nodes["NodeA"].refine_instructions == "Verify A output strictly"
+    assert dspyer_graph.nodes["NodeB"].max_retries == 0
+    assert dspyer_graph.nodes["NodeB"].refine_instructions is None

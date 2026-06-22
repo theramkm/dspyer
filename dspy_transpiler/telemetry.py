@@ -45,6 +45,38 @@ class TelemetrySpan:
         if self.otel_span and HAS_OTEL:
             self.otel_span.set_attribute(key, str(value))
 
+    def record_validation_error(self, err: Exception) -> None:
+        """
+        Record detailed validation error details onto the tracing span attributes.
+        """
+        self.set_attribute("validation.failed", True)
+        if self.otel_span and HAS_OTEL:
+            try:
+                self.otel_span.record_exception(err)
+            except Exception:
+                pass
+
+        if hasattr(err, "errors") and callable(err.errors):
+            try:
+                err_list = err.errors()
+                self.set_attribute("validation.error.count", len(err_list))
+                import json
+
+                self.set_attribute("validation.errors_json", json.dumps(err_list))
+                for i, error in enumerate(err_list):
+                    loc_str = ".".join(str(x) for x in error.get("loc", []))
+                    self.set_attribute(f"validation.error.{i}.field", loc_str)
+                    self.set_attribute(f"validation.error.{i}.message", error.get("msg", ""))
+                    self.set_attribute(f"validation.error.{i}.type", error.get("type", ""))
+                    self.set_attribute(f"validation.error.{i}.input", str(error.get("input", "")))
+            except Exception as parse_err:
+                self.set_attribute("validation.error.parse_failure", str(parse_err))
+        else:
+            self.set_attribute("validation.error.message", str(err))
+
+        if not HAS_OTEL:
+            logger.warning(f"[VALIDATION FAILED] Span: {self.name} | Error: {str(err)}")
+
 
 @contextmanager
 def trace_span(

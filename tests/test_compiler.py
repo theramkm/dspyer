@@ -750,6 +750,74 @@ def test_telemetry_span_otel_integration(monkeypatch):
     sys.modules.pop("opentelemetry.trace", None)
 
 
+def test_telemetry_validation_error_recording(monkeypatch):
+    import sys
+    from unittest.mock import MagicMock
+
+    from pydantic import BaseModel, Field, ValidationError
+
+    # Mock opentelemetry modules in sys.modules
+    mock_trace = MagicMock()
+    sys.modules["opentelemetry"] = MagicMock()
+    sys.modules["opentelemetry.trace"] = mock_trace
+
+    import dspy_transpiler.telemetry as tel
+    from dspy_transpiler import telemetry
+
+    monkeypatch.setattr(tel, "HAS_OTEL", True)
+
+    class MockSpan:
+        def __init__(self):
+            self.attributes = {}
+            self.exceptions = []
+
+        def set_attribute(self, key, value):
+            self.attributes[key] = value
+
+        def record_exception(self, e):
+            self.exceptions.append(e)
+
+        def end(self):
+            pass
+
+    class MockTracer:
+        def start_span(self, name, context=None):
+            return MockSpan()
+
+    monkeypatch.setattr(tel, "otel_tracer", MockTracer())
+
+    # Create a real validation error to test parsing of errors
+    class DemoSchema(BaseModel):
+        username: str = Field(min_length=3)
+        age: int
+
+    try:
+        # Use dict unpacking with annotated dictionary to bypass compile-time type warning in test
+        invalid_args: dict[str, Any] = {"username": "ab", "age": "not-an-int"}
+        DemoSchema(**invalid_args)
+    except ValidationError as val_err:
+        target_error = val_err
+
+    with telemetry.trace_span("validation_test_node", {}) as span:
+        span.record_validation_error(target_error)
+
+    # Assert standard error attributes
+    otel_span: Any = span.otel_span
+    assert otel_span is not None
+    assert otel_span.attributes["validation.failed"] == "True"
+    assert otel_span.attributes["validation.error.count"] == "2"
+    assert otel_span.exceptions[0] == target_error
+
+    # Assert specific field locations
+    locs = [otel_span.attributes.get(f"validation.error.{i}.field") for i in range(2)]
+    assert "username" in locs
+    assert "age" in locs
+
+    # Clean up sys.modules after test
+    sys.modules.pop("opentelemetry", None)
+    sys.modules.pop("opentelemetry.trace", None)
+
+
 def test_graph_compilation_collision():
     from pydantic import BaseModel, Field
 
@@ -888,3 +956,110 @@ async def test_direct_client_token_usage_parsing(monkeypatch):
 
     res_async = await lm.aforward(prompt="test prompt")
     assert res_async.usage == {"prompt_tokens": 44, "completion_tokens": 55, "total_tokens": 99}
+
+
+def test_compiler_node_max_retries_override(monkeypatch):
+    node_a = StatefulNode(
+        name="NodeA",
+        input_model=CompilerTestInput,
+        output_model=CompilerTestOutput,
+        max_retries=5,
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    graph.set_entry_point("NodeA")
+    program = AgentTranspiler.compile(graph)
+
+    # Replicate always-failing validation output, then check if refiner is called 5 times
+    class MockInvalidOutput:
+        parsed_value = "not-an-int"
+
+    predict_calls = 0
+    refine_calls = 0
+
+    def mock_predict(**kwargs):
+        nonlocal predict_calls
+        predict_calls += 1
+        return MockInvalidOutput()
+
+    def mock_refine(**kwargs):
+        nonlocal refine_calls
+        refine_calls += 1
+        return MockInvalidOutput()
+
+    monkeypatch.setattr(program, "predictor_NodeA", mock_predict)
+    monkeypatch.setattr(program, "refiner_NodeA", mock_refine)
+
+    with pytest.raises(GraphExecutionError) as exc_info:
+        # Pass program level max_retries=2, but node level is 5
+        program(input_text="hello", _max_retries=2)
+
+    assert predict_calls == 1
+    assert refine_calls == 5
+    assert exc_info.value.retries == 5
+
+
+def test_compiler_chain_of_thought_autoinjection(monkeypatch):
+    node_a = StatefulNode(
+        name="NodeA",
+        input_model=CompilerTestInput,
+        output_model=CompilerTestOutput,
+        use_cot=True,
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    graph.set_entry_point("NodeA")
+    program = AgentTranspiler.compile(graph)
+
+    # Replicate success output with CoT rationale field
+    class MockOutput:
+        parsed_value = 100
+        rationale = "This is intermediate reasoning."
+
+    def mock_predict(**kwargs):
+        return MockOutput()
+
+    monkeypatch.setattr(program, "predictor_NodeA", mock_predict)
+
+    result = program(input_text="hello")
+    assert result["parsed_value"] == 100
+    assert result["_metadata"]["rationales"]["NodeA"] == "This is intermediate reasoning."
+
+
+def test_compiler_config_serialization(tmp_path):
+    node_a = StatefulNode(
+        name="NodeA",
+        input_model=CompilerTestInput,
+        output_model=CompilerTestOutput,
+        instructions="Initial node instructions",
+        refine_instructions="Initial refine instructions",
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    graph.set_entry_point("NodeA")
+    program = AgentTranspiler.compile(graph)
+
+    # Verify initial instructions
+    assert program.predictor_NodeA.signature.instructions == "Initial node instructions"
+    assert program.refiner_NodeA.signature.instructions == "Initial refine instructions"
+
+    # Save initial config
+    config_file = tmp_path / "node_a_config.json"
+    program.save_config(str(config_file))
+
+    # Read back config file to check format
+    with open(config_file, "r") as f:
+        data = json.load(f)
+    assert data["NodeA"]["instructions"] == "Initial node instructions"
+    assert data["NodeA"]["refine_instructions"] == "Initial refine instructions"
+
+    # Modify JSON data
+    data["NodeA"]["instructions"] = "Optimized node instructions"
+    data["NodeA"]["refine_instructions"] = "Optimized refine instructions"
+    with open(config_file, "w") as f:
+        json.dump(data, f)
+
+    # Load new config and verify signature mutation
+    program.load_config(str(config_file))
+    assert program.predictor_NodeA.signature.instructions == "Optimized node instructions"
+    assert program.refiner_NodeA.signature.instructions == "Optimized refine instructions"

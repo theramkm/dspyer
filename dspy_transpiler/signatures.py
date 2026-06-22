@@ -29,6 +29,12 @@ class DynamicSignatureBuilder:
             fields[name] = (field_info.annotation, dspy.InputField(desc=desc))
 
         # Parse outputs
+        if node.use_cot:
+            fields["rationale"] = (
+                str,
+                dspy.OutputField(desc="Step-by-step reasoning plan"),
+            )
+
         for name, field_info in node.output_model.model_fields.items():
             if not field_info.description:
                 warnings.warn(
@@ -83,11 +89,17 @@ class DynamicSignatureBuilder:
         )
 
         # Parse original outputs
+        if node.use_cot:
+            fields["rationale"] = (
+                str,
+                dspy.OutputField(desc="Step-by-step reasoning plan"),
+            )
+
         for name, field_info in node.output_model.model_fields.items():
             desc = field_info.description or name.replace("_", " ").title()
             fields[name] = (field_info.annotation, dspy.OutputField(desc=desc))
 
-        instructions = (
+        instructions = node.refine_instructions or (
             "Review the original inputs and the failed_output. "
             "Correct the failed_output based on the error_feedback. "
             "Ensure the output satisfies the expected schema."

@@ -570,6 +570,9 @@ _refinement_steps: contextvars.ContextVar[int] = contextvars.ContextVar(
 _last_refinement_steps: contextvars.ContextVar[int] = contextvars.ContextVar(
     "last_refinement_steps", default=0
 )
+_rationales: contextvars.ContextVar[Dict[str, str]] = contextvars.ContextVar(
+    "rationales", default={}
+)
 
 
 class GraphExecutionError(RuntimeError):
@@ -681,6 +684,7 @@ class TranspiledAgentProgram(dspy.Module):
         Runs execution pipeline for a single node including pre-flight checks,
         predictions, output Pydantic validations, retries, and telemetry hooks.
         """
+        effective_max_retries = node.max_retries if node.max_retries is not None else max_retries
         predictor = getattr(self, f"predictor_{node.name}")
         refiner = getattr(self, f"refiner_{node.name}")
 
@@ -771,12 +775,34 @@ class TranspiledAgentProgram(dspy.Module):
                     # Populate span output metadata
                     for k, v in validated_patch.model_dump().items():
                         span.set_attribute(f"output.{k}", str(v))
+
+                    # If use_cot is True, collect and store rationale in telemetry/span metadata
+                    if node.use_cot:
+                        rationale_val = None
+                        if isinstance(output_prediction, dict) and "rationale" in output_prediction:
+                            rationale_val = output_prediction["rationale"]
+                        elif hasattr(output_prediction, "__getitem__"):
+                            try:
+                                rationale_val = output_prediction["rationale"]  # type: ignore[index]
+                            except KeyError:
+                                rationale_val = getattr(output_prediction, "rationale", None)
+                        else:
+                            rationale_val = getattr(output_prediction, "rationale", None)
+
+                        if rationale_val is not None:
+                            span.set_attribute("output.rationale", str(rationale_val))
+                            current_rationales = _rationales.get()
+                            updated_rationales = dict(current_rationales)
+                            updated_rationales[node.name] = str(rationale_val)
+                            _rationales.set(updated_rationales)
+
                     break  # Validation succeeded, break retry loop
                 except Exception as validation_err:
+                    span.record_validation_error(validation_err)
                     attempt += 1
                     _refinement_steps.set(_refinement_steps.get() + 1)
 
-                    if attempt > max_retries:
+                    if attempt > effective_max_retries:
                         span.set_status("ERROR", str(validation_err))
                         feedback = format_validation_error(validation_err)
                         raise GraphExecutionError(
@@ -784,7 +810,7 @@ class TranspiledAgentProgram(dspy.Module):
                             inputs=node_inputs,
                             raw_output=raw_outputs,
                             error_feedback=feedback,
-                            retries=max_retries,
+                            retries=effective_max_retries,
                             original_exception=validation_err,
                         ) from validation_err
 
@@ -824,6 +850,7 @@ class TranspiledAgentProgram(dspy.Module):
         **initial_state_kwargs,
     ) -> dspy.Prediction:
         token = _refinement_steps.set(0)
+        rat_token = _rationales.set({})
         try:
             max_retries = initial_state_kwargs.pop("max_retries", _max_retries)
             max_steps = initial_state_kwargs.pop("max_steps", _max_steps)
@@ -895,15 +922,75 @@ class TranspiledAgentProgram(dspy.Module):
                     current_node_name = None
 
             final_state = state.to_dict()
-            final_state["_metadata"] = {
+            metadata: Dict[str, Any] = {
                 "refinement_steps_taken": self.refinement_steps_taken,
                 "step_count": step_count,
             }
+            rats = _rationales.get()
+            if rats:
+                metadata["rationales"] = rats
+            final_state["_metadata"] = metadata
             self._last_refinement_steps_taken = self.refinement_steps_taken
             _last_refinement_steps.set(self.refinement_steps_taken)
             return dspy.Prediction(**final_state)
         finally:
             _refinement_steps.reset(token)
+            _rationales.reset(rat_token)
+
+    def save_config(self, path: str) -> None:
+        """
+        Serializes the compiled module's prompt instructions and refined instructions
+        to a clean, human-readable JSON configuration file.
+        """
+        config = {}
+        for node_name in self._nodes_map.keys():
+            predictor = getattr(self, f"predictor_{node_name}", None)
+            refiner = getattr(self, f"refiner_{node_name}", None)
+
+            node_cfg = {}
+            if predictor is not None and hasattr(predictor, "signature"):
+                node_cfg["instructions"] = predictor.signature.instructions
+            if refiner is not None and hasattr(refiner, "signature"):
+                node_cfg["refine_instructions"] = refiner.signature.instructions
+
+            config[node_name] = node_cfg
+
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=4)
+
+    def load_config(self, path: str) -> None:
+        """
+        Loads optimized prompt instructions and refined instructions from a JSON
+        configuration file and applies them to the module's predictors and refiners.
+        """
+        with open(path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        for node_name, node_cfg in config.items():
+            predictor = getattr(self, f"predictor_{node_name}", None)
+            refiner = getattr(self, f"refiner_{node_name}", None)
+
+            if (
+                predictor is not None
+                and hasattr(predictor, "signature")
+                and "instructions" in node_cfg
+            ):
+                sig = predictor.signature
+                if hasattr(sig, "with_instructions"):
+                    predictor.signature = sig.with_instructions(node_cfg["instructions"])
+                else:
+                    sig.instructions = node_cfg["instructions"]
+
+            if (
+                refiner is not None
+                and hasattr(refiner, "signature")
+                and "refine_instructions" in node_cfg
+            ):
+                sig = refiner.signature
+                if hasattr(sig, "with_instructions"):
+                    refiner.signature = sig.with_instructions(node_cfg["refine_instructions"])
+                else:
+                    sig.instructions = node_cfg["refine_instructions"]
 
 
 class AgentTranspiler:

@@ -15,11 +15,17 @@ class StatefulNode:
         input_model: Type[BaseModel],
         output_model: Type[BaseModel],
         instructions: Optional[str] = None,
+        max_retries: Optional[int] = None,
+        refine_instructions: Optional[str] = None,
+        use_cot: bool = False,
     ):
         self.name = name
         self.input_model = input_model
         self.output_model = output_model
         self.instructions = instructions
+        self.max_retries = max_retries
+        self.refine_instructions = refine_instructions
+        self.use_cot = use_cot
 
 
 class Graph:

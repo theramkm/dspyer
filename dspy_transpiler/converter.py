@@ -29,7 +29,9 @@ def typeddict_to_pydantic(typed_dict: type) -> type[BaseModel]:
 
 
 def from_langgraph(
-    state_graph: Any, node_mappings: Optional[Dict[str, StatefulNode]] = None
+    state_graph: Any,
+    node_mappings: Optional[Dict[str, StatefulNode]] = None,
+    node_configs: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Graph:
     """
     Converts a LangGraph StateGraph builder or CompiledStateGraph into a dspyer Graph.
@@ -39,6 +41,8 @@ def from_langgraph(
         node_mappings: Optional dictionary mapping LangGraph node names to dspyer StatefulNodes.
                        If not provided for a node, a default StatefulNode will be dynamically
                        generated using the node's function docstring/signature.
+        node_configs: Optional dictionary mapping LangGraph node names to configuration override dictionaries.
+                      Can configure max_retries and refine_instructions.
 
     Returns:
         Graph: A populated dspyer Graph topology ready for compilation.
@@ -68,12 +72,22 @@ def from_langgraph(
             pydantic_state = DefaultState
 
     node_mappings = node_mappings or {}
+    node_configs = node_configs or {}
     dspyer_graph = Graph()
 
     # 3. Process and register all nodes
     for node_name, node_spec in builder.nodes.items():
         if node_name in node_mappings:
-            dspyer_graph.add_node(node_mappings[node_name])
+            node = node_mappings[node_name]
+            if node_name in node_configs:
+                cfg = node_configs[node_name]
+                if "max_retries" in cfg:
+                    node.max_retries = cfg["max_retries"]
+                if "refine_instructions" in cfg:
+                    node.refine_instructions = cfg["refine_instructions"]
+                if "use_cot" in cfg:
+                    node.use_cot = cfg["use_cot"]
+            dspyer_graph.add_node(node)
         else:
             # Auto-generate StatefulNode from function docstring & inputs/outputs
             runnable = getattr(node_spec, "runnable", node_spec)
@@ -84,11 +98,15 @@ def from_langgraph(
                 docstring.strip() if docstring else f"Execute agent step for node '{node_name}'."
             )
 
+            cfg = node_configs.get(node_name, {})
             generated_node = StatefulNode(
                 name=node_name,
                 input_model=pydantic_state,
                 output_model=pydantic_state,
                 instructions=instructions,
+                max_retries=cfg.get("max_retries"),
+                refine_instructions=cfg.get("refine_instructions"),
+                use_cot=cfg.get("use_cot", False),
             )
             dspyer_graph.add_node(generated_node)
 
