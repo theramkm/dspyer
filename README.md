@@ -16,6 +16,14 @@ In modern AI engineering, manual prompt engineering is dead. We use DSPy to stat
 
 **`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **zero-shot learning optimization** via DSPy teleprompters.
 
+### 🤝 The LangGraph & PydanticAI Bridge (Our USP)
+
+In 2026, building production-grade agents presents a trade-off:
+* **LangGraph**: Industry standard for complex, cyclic, stateful workflows, but prompt optimization is manual, slow, and fragile.
+* **DSPy**: Industry standard for algorithmic prompt tuning, but expressing stateful graphs, parallel splits, and loops in raw DSPy signatures is verbose and counter-intuitive.
+
+**`dspyer` gives you the best of both worlds.** Write your workflows using a clean, stateful graph topology (inspired by LangGraph and PydanticAI), then compile it with `AgentTranspiler.compile(graph)`. You get the execution control of a graph framework, backed by the full prompt-optimizing power of DSPy teleprompters.
+
 ---
 
 ## 🚀 Try It In 10 Seconds (No API Key Required)
