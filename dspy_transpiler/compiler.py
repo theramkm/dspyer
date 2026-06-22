@@ -281,10 +281,11 @@ class MockCompletionResult:
         self._hidden_params = {"response_cost": 0.0}
 
 
-class DirectLM(dspy.LM):
+class DirectLM(dspy.BaseLM):
     """
-    Custom dspy.LM subclass that wraps DirectClient.
-    Integrates directly with DSPy's global runtime, history tracking, and teleprompters.
+    Custom dspy.BaseLM subclass that wraps DirectClient.
+    Integrates directly with DSPy's global runtime, history tracking, and teleprompters,
+    bypassing LiteLLM entirely at execution time.
     """
 
     def __init__(

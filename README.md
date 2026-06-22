@@ -88,14 +88,19 @@ print(result)
 If your model output fails Pydantic schema validation, `dspyer` automatically initiates a correction retry loop, generating natural-language feedback describing the validation failure, and prompting the model to repair its response.
 
 ### 🔀 2. State Conflict Resolution Merging
-Execute parallel paths concurrently, then reconcile diverging dictionaries cleanly using RFC 7396 JSON Merge Patch policies:
+Execute parallel paths concurrently, then reconcile diverging dictionaries cleanly using custom merge policies:
 ```python
 # Reconcile diverging state branches (concatenates list elements, resolves other keys)
 merged = state_a.merge(state_b, policy="combine_lists")
 ```
 
 ### 🏎️ 3. Direct `DirectLM` Adapter (Bypassing LiteLLM)
-Bypass LiteLLM runtime layers and connect directly to Ollama, OpenAI, Anthropic, and Google Gemini using a persistent, pooled connection pool with jittered backoff:
+> [!NOTE]
+> Standard DSPy `dspy.LM` adapters are the default recommended configuration for general use to leverage LiteLLM's full routing, caching, and streaming features.
+>
+> `DirectLM` (inheriting from `dspy.BaseLM`) is an optimized, high-performance alternative designed to completely bypass LiteLLM's runtime layer, eliminating event loop blocking and thread contention in latency-critical production environments.
+
+Connect directly to Ollama, OpenAI, Anthropic, and Google Gemini using a persistent, pooled connection pool with jittered backoff:
 ```python
 from dspy_transpiler.compiler import DirectLM
 
