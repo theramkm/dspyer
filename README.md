@@ -1,6 +1,6 @@
 # ⚡ dspyer
 
-> **Transpile stateful, imperative graph topologies into declarative, auto-optimizable DSPy modules.**
+> **Transpile stateful, cyclic agent graphs into declarative, auto-optimizable DSPy modules.**
 
 [![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
 [![Python 3.10-3.14](https://img.shields.io/badge/python-3.10--3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
@@ -10,21 +10,24 @@
 
 ![dspyer Transpiler Flow](assets/dspyer_flow.png)
 
-## 🎯 What is dspyer?
+## 🎯 The Paradigm Clash (Why dspyer?)
 
-In modern AI engineering, manual prompt engineering is dead. We use DSPy to statistically optimize prompt weights and instructions. But mapping complex, imperative state machines (with loops, branches, and retries) to DSPy's declarative format has been notoriously difficult.
+Building production-grade AI agents presents a fundamental conflict of design patterns:
 
-**`dspyer` solves this.** It parses stateful graphs, handles immutable state transitions, executes validation/self-correction loops, and automatically compiles them into standard `dspy.Module` classes. Your agent workflows are now ready for **few-shot prompt optimization** via DSPy teleprompters.
+1. **Agents are Stateful, Imperative, & Cyclic**: Orchestrators like **LangGraph** rely on mutable state dictionaries, complex conditional routing loop transitions (e.g., repeating a tool call on failure), and dynamic execution paths.
+2. **DSPy is Declarative, Functional, & Linear**: DSPy treats LLM prompts as parameterized layers (`dspy.Predict(Signature)`). To run its powerful optimizers (**MIPROv2**, **BootstrapFewShot**) and automatically tune prompt text and few-shot exemplars, DSPy requires a linear, declarative execution trace (`dspy.Module.forward()`).
 
-### 🤝 The LangGraph & PydanticAI Bridge (Our USP)
+If you try to map a complex, looping agent directly to DSPy, optimization metrics break because the execution graph is dynamic and stateful.
 
-In 2026, building production-grade agents presents a trade-off:
-* **LangGraph**: The industry standard for master orchestration, cyclic state management, state persistence, and human-in-the-loop flows.
-* **DSPy**: The industry standard for algorithmic prompt optimization and self-correction, but lacks a simple graph representation.
+**`dspyer` bridges this gap.** It allows you to define stateful, cyclic agent topologies using Pydantic schema boundaries, and transpiles them into standard `dspy.Module` programs. You get robust stateful execution, cyclic routing, and validator-driven self-correction, all fully compatible with DSPy's algorithmic optimization engines.
 
-**`dspyer` allows you to plug DSPy's optimization directly into your existing LangGraph workflows.** Instead of rewriting your entire architecture, you can build or transpile complex reasoning and generation nodes using `dspyer` graphs, and drop the compiled `dspy.Module` directly into your existing LangGraph python functions.
+---
 
-#### 🔌 Drop-In Upgrade: Plugging `dspyer` into an existing LangGraph Node
+## 🔌 The USP: Drop-In LangGraph Upgrades
+
+You do not need to rewrite your entire system to get the benefit of prompt optimization. The most powerful way to use `dspyer` is as a **drop-in node optimizer** inside your existing LangGraph workflows. 
+
+You can build, transpile, and optimize a complex, multi-step sub-graph using `dspyer`, and run the compiled `dspy.Module` directly inside a single LangGraph node function:
 
 ```python
 from pydantic import BaseModel, Field
@@ -39,6 +42,7 @@ class AgentOutput(BaseModel):
     answer: str
     citations: list[str]
 
+# Define the node boundaries (input schema, output schema, initial instruction)
 agent_node = StatefulNode(
     name="Agent",
     input_model=AgentInput,
@@ -50,7 +54,7 @@ graph = Graph()
 graph.add_node(agent_node)
 graph.set_entry_point("Agent")
 
-# Compile to a standard, optimizable dspy.Module
+# Compile into a standard, optimizable dspy.Module
 compiled_agent = AgentTranspiler.compile(graph)
 
 
@@ -79,23 +83,22 @@ workflow.add_node("agent_node", run_agent_node)
 # ... add_edge, set_entry_point, compile ...
 ```
 
-
 ---
 
 ## 🚀 Try It In 10 Seconds (No API Key Required)
 
-Copy-paste this snippet to create a stateful classifier, compile it to a declarative DSPy module, and run it locally using a built-in Mock LM—no credentials or network required.
+Copy-paste this snippet to build a 2-node intent extractor and classifier, compile it, and run it locally using a built-in Mock LM—no credentials or network calls required.
 
 ### 1. Install
 
 > [!IMPORTANT]
-> **Pre-Release Status**: `dspyer` is currently in pre-release (`0.1.0`) and is not yet published on PyPI. Always install it directly from the GitHub repository using the commands below.
+> **Pre-Release Status**: `dspyer` is currently in pre-release (`0.1.0`) and is not yet published on PyPI. Always install it directly from the GitHub repository:
 
 ```bash
-# Add as a dependency to your project:
+# Add as a dependency using uv:
 uv add git+https://github.com/theramkm/dspyer.git
 
-# Or install locally via pip:
+# Or install via pip:
 pip install git+https://github.com/theramkm/dspyer.git
 ```
 
@@ -180,7 +183,7 @@ class QuickstartMockLM(dspy.LM):
 
         return MockResult(content)
 
-# 6. Configure DSPy to use the Mock LM and run
+# 6. Configure DSPy and execute
 dspy.configure(lm=QuickstartMockLM())
 result = program(raw_text="Hello, my name is Alice. I would like to buy a subscription.")
 print(result)
@@ -188,77 +191,168 @@ print(result)
 
 ---
 
-## 🍳 Real-World Production Recipes
+## 🎯 Core Production Workflow: Optimize, Save & Load
 
-We avoid toy examples. Look at our production-ready recipes to see the full capabilities of `dspyer`.
+Prompt engineering is fragile. If you upgrade your model backend (e.g. from Claude 3.5 Sonnet to GPT-4o-mini), your hardcoded prompts will fail. 
 
-### 🛡️ 1. Self-Correction & Verification Loops
-A RAG node that queries a simulated source, validates the response, and uses the dynamic validation loop to self-correct if the citation is missing or the response is empty.
+`dspyer` allows you to compile your topology, run standard DSPy optimizers to tune node instructions and few-shot exemplars on a validation dataset, serialize the optimized configuration, and rehydrate it in production.
 
-To run this recipe locally:
-```bash
-uv run examples/run_rag_verifier.py
+Below is the complete lifecycle workflow (see [examples/optimize_compiled_graph.py](examples/optimize_compiled_graph.py)):
+
+```python
+import dspy
+from dspy.teleprompt import BootstrapFewShot
+from dspy_transpiler import AgentTranspiler, from_langgraph
+
+# 1. Convert your StateGraph topology to dspyer and compile
+dspyer_graph = from_langgraph(langgraph_builder, node_configs=configs)
+program = AgentTranspiler.compile(dspyer_graph)
+
+# 2. Define your training dataset (inputs and expected outputs)
+trainset = [
+    dspy.Example(input_text="I am very happy.", sentiment="positive").with_inputs("input_text"),
+    dspy.Example(input_text="This product is bad.", sentiment="negative").with_inputs("input_text")
+]
+
+# 3. Setup evaluation metric
+def metric(example, pred, trace=None) -> bool:
+    return example.sentiment.lower() == pred.sentiment.lower()
+
+# 4. Run the DSPy prompt optimizer
+optimizer = BootstrapFewShot(metric=metric, max_bootstrapped_demos=2)
+optimized_program = optimizer.compile(program, trainset=trainset)
+
+# 5. Save the optimized prompt instructions & exemplars to a JSON config
+optimized_program.save_config("optimized_agent_config.json")
+
+# 6. Rehydrate the configurations in a fresh production instance
+fresh_graph = from_langgraph(langgraph_builder, node_configs=configs)
+production_program = AgentTranspiler.compile(fresh_graph)
+
+production_program.load_config("optimized_agent_config.json")
+# production_program now executes using the optimized prompt weights!
 ```
-*Code reference:* [examples/run_rag_verifier.py](examples/run_rag_verifier.py)
-
-### 🎯 2. DSPy Prompt Optimization Pipeline
-A script that runs DSPy's `BootstrapFewShot` teleprompter to optimize the prompts of a transpiled agent program, demonstrating the core value proposition of `dspyer`.
-
-To run this recipe locally:
-```bash
-uv run examples/optimize_agent_prompt.py
-```
-*Code reference:* [examples/optimize_agent_prompt.py](examples/optimize_agent_prompt.py)
-
-### 🔀 3. Loops & Concurrent Parallel Branches
-Executes complex parallel paths concurrently, splits execution into sentiment analysis and tag extraction, and reconciles state branches using custom merge policies.
-
-To run this recipe locally:
-```bash
-uv run examples/run_parallel_loop.py
-```
-*Code reference:* [examples/run_parallel_loop.py](examples/run_parallel_loop.py)
 
 ---
 
-## 💎 Elite 2026 Features
+## 🛡️ Dynamic Validation & Self-Correction Loops
 
-### 🔄 1. Dynamic Validation & Self-Correction Loops
-If your model output fails Pydantic schema validation, `dspyer` automatically initiates a correction retry loop, generating natural-language feedback describing the validation failure, and prompting the model to repair its response.
+If your model output fails Pydantic schema validation at runtime (e.g., missing a field, failing validation rules, or emitting invalid JSON), `dspyer` automatically initiates a self-correction retry loop:
 
-### 🔀 2. State Conflict Resolution Merging
-Execute parallel paths concurrently, then reconcile diverging dictionaries cleanly using custom merge policies:
+1. **Translates the Validation Error**: Formats the Pydantic error trace into clear, human-readable natural language feedback.
+2. **Invokes Node Refiner**: Sends the original inputs, the failed JSON output, and the validation error message back to the model.
+3. **Self-Correction**: The model corrects the output dynamically. The cycle repeats until validation passes or `max_retries` is reached.
+
 ```python
-# Reconcile diverging state branches (concatenates list elements, resolves other keys)
-merged = state_a.merge(state_b, policy="combine_lists")
+class SearchOutput(BaseModel):
+    answer: str
+    citations: list[str] = Field(min_items=1, description="At least one source citation required.")
+
+# If the LLM generates an answer with empty citations, the node will intercept
+# the ValidationError, format the feedback, and invoke self-correction automatically.
+search_node = StatefulNode(
+    name="Search",
+    input_model=SearchInput,
+    output_model=SearchOutput,
+    max_retries=3  # Customize retry limit per-node
+)
 ```
 
-### 🏎️ 3. Direct `DirectLM` Adapter (Bypassing LiteLLM)
-> [!NOTE]
-> Standard DSPy `dspy.LM` adapters are the default recommended configuration for general use to leverage LiteLLM's full routing, caching, and streaming features.
->
-> `DirectLM` (inheriting from `dspy.BaseLM`) is an optimized, high-performance alternative designed to completely bypass LiteLLM's runtime layer, eliminating event loop blocking and thread contention in latency-critical production environments.
+To run a complete self-correcting RAG verification loop:
+```bash
+uv run examples/run_rag_verifier.py
+```
 
-Connect directly to Ollama, OpenAI, Anthropic, and Google Gemini using a persistent, pooled connection pool with jittered backoff:
+---
+
+## 📊 Production-Grade Observability (Arize Phoenix)
+
+To demystify self-correction validator loops, `dspyer` integrates natively with **OpenTelemetry**. Traces are structured to capture every retry cycle, failed JSON payload, and Pydantic exception details directly in your visualization UI (**Arize Phoenix**, **Langfuse**, or **Jaeger**).
+
+### 1. Configure OpenTelemetry Setup
+```python
+from openinference.instrumentation.dspy import DSPyInstrumentor
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+
+# Configure Tracer pointing to collector (e.g. Phoenix at port 6006)
+otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:6006/v1/traces")
+tracer_provider = TracerProvider()
+tracer_provider.add_span_processor(SimpleSpanProcessor(otlp_exporter))
+trace.set_tracer_provider(tracer_provider)
+
+# Instrument DSPy model layers & dspyer graph routing
+DSPyInstrumentor().instrument()
+```
+
+### 2. Launch Local Phoenix server
+```bash
+pip install arize-phoenix openinference-instrumentation-dspy opentelemetry-exporter-otlp
+phoenix start
+```
+
+### 🔍 Attributes Exposed on Span Validation Failure
+When a validation failure occurs, inspect the active span attributes in Phoenix:
+* **`validation.failed`**: `True` indicating a validation exception occurred.
+* **`validation.error.count`**: The number of fields that failed validation during this retry pass.
+* **`validation.error.{index}.field`**: The exact field path that failed validation (e.g., `citations`).
+* **`validation.error.{index}.message`**: Natural language reason (e.g., `List must have at least 1 item`).
+* **`validation.error.{index}.input`**: The original invalid value generated by the model.
+* **`retry.{attempt}.error`**: The feedback text injected back into the signature to prompt self-correction.
+* **`retry.{attempt}.failed_output`**: The raw JSON payload that failed parsing/validation.
+
+---
+
+## 💎 Advanced Features Reference
+
+### 🔄 1. Per-Node Configurations
+Fine-tune parameters at the individual node level rather than relying on global execution constraints:
+```python
+node = StatefulNode(
+    name="Synthesizer",
+    input_model=InputModel,
+    output_model=OutputModel,
+    max_retries=5,                              # Local retry budget
+    refine_instructions="Rewrite the text precisely focusing on formatting.", # Refinement prompt
+    use_cot=True                                # Enable CoT reasoning
+)
+```
+
+### 🧠 2. Opt-In Chain-of-Thought Autoinjection
+Enable logical reasoning paths programmatically without polluting your core structured Pydantic models. Passing `use_cot=True` to a node:
+1. Dynamically injects a `rationale: str` field in the signature.
+2. Directs the LLM to output its reasoning.
+3. Automatically bypasses standard Pydantic schema validation for the `rationale` field.
+4. Exposes all execution node reasoning traces in the output prediction metadata: `result["_metadata"]["rationales"]`.
+
+### 🔀 3. State Conflict Resolution Merging
+When running parallel execution branches, state dictionaries can diverge. Reconcile states cleanly using `ImmutableState.merge()`:
+```python
+# Reconcile diverging state branches
+# combine_lists: Concatenates list values; resolves other keys with last-write-wins
+merged_state = state_a.merge(state_b, policy="combine_lists")
+```
+*Supported policies: `last_write_wins`, `combine_lists`, and `raise` (for strict validation).*
+
+### 🏎️ 4. Direct `DirectLM` Client (Bypassing LiteLLM)
+*Standard DSPy `dspy.LM` adapters are recommended by default. However, for latency-critical production environments, `DirectLM` (inheriting from `dspy.BaseLM`) provides an optimized wrapper bypassing LiteLLM entirely at execution time.*
+* Reuses persistent, pooled sync/async HTTP connections (using `httpx.Limits(max_keepalive_connections=10)`).
+* Protects API tokens by passing keys securely inside authentication headers rather than URL query variables.
+* Integrates provider token usage statistics directly into downstream DSPy cost trackers.
 ```python
 from dspy_transpiler.compiler import DirectLM
 
-lm = DirectLM(model="google/gemini-2.5-flash")
+lm = DirectLM(model="anthropic/claude-3-5-sonnet")
 dspy.configure(lm=lm)
 ```
 
-### 📈 4. Refinement Loss Metric Logging
-Each compiled module records the number of self-correction steps and path steps taken, returning this metadata under `_metadata`:
-```python
-metadata = result["_metadata"]
-print(f"Correction retries: {metadata['refinement_steps_taken']}")
-print(f"Total steps run: {metadata['step_count']}")
-```
-*Use this metrics payload as a penalty term in your optimizer loss function to optimize for low latency and high accuracy.*
+---
 
-## 🔄 Automated LangGraph Conversion (`from_langgraph`)
+## 🔄 Automated LangGraph Converter (`from_langgraph`)
 
-Instead of rewriting your state machine by hand, `dspyer` provides a native topology converter. Pass your existing LangGraph `StateGraph` or `CompiledStateGraph` directly, and get a compiled, optimizable `dspyer` Program back:
+`dspyer` provides a native converter to parse an existing LangGraph `StateGraph` or `CompiledStateGraph` structure directly into a `dspyer.Graph`:
 
 ```python
 from langgraph.graph import StateGraph, START, END
@@ -271,131 +365,13 @@ builder.add_node("ToolNode", tool_function)
 builder.add_edge(START, "AgentNode")
 builder.add_conditional_edges("AgentNode", router, {"call_tool": "ToolNode", "end": END})
 
-# 2. Convert it dynamically to a dspyer Graph
-# Unmapped nodes automatically inherit Pydantic models from MyStateSchema,
-# and use function docstrings for optimization instructions.
+# 2. Convert it dynamically
+# Auto-generated nodes inherit schema boundaries from MyStateSchema
 dspyer_graph = from_langgraph(builder)
 
 # 3. Compile it to an optimizable DSPy Module!
 program = AgentTranspiler.compile(dspyer_graph)
 ```
-
----
-
-## 🗺️ Mapping Framework Topologies (LangGraph / PydanticAI)
-
-`dspyer` compiles a custom stateful `Graph` architecture. You can easily map your existing workflows from LangGraph or PydanticAI onto `dspyer` using the following patterns:
-
-### 1. LangGraph Nodes to StatefulNodes
-In LangGraph, nodes are functions that receive state and return state patches. In `dspyer`, nodes are declared with explicit Pydantic `input_model` and `output_model` boundaries to enable DSPy-level optimizations:
-
-```python
-# 1. Declare Pydantic boundary models
-class SearchInput(BaseModel):
-    query: str
-
-class SearchOutput(BaseModel):
-    results: list[str]
-
-# 2. Declare the StatefulNode
-search_node = StatefulNode(
-    name="WebSearch",
-    input_model=SearchInput,
-    output_model=SearchOutput,
-    instructions="Query search engines to resolve user query details."
-)
-
-# 3. Add to Graph
-graph.add_node(search_node)
-```
-
-### 2. LangGraph Conditional Edges to Router Nodes
-In LangGraph, conditional routing functions route based on the state. You can translate this directly into `dspyer` using python callables as routers:
-
-```python
-def check_relevance_router(state: dict) -> str:
-    if len(state.get("results", [])) > 0:
-        return "proceed"
-    return "retry"
-
-graph.add_conditional_edges(
-    "WebSearch",
-    check_relevance_router,
-    {"proceed": "SummarizerNode", "retry": "WebSearch"}
-)
-```
-
-### 3. PydanticAI Agents to StatefulNodes
-In PydanticAI, agents are declared with explicit schemas for dependencies and results. In `dspyer`, a PydanticAI Agent translates directly to a `StatefulNode` mapping the input and output result models:
-
-```python
-from pydantic import BaseModel
-from pydantic_ai import Agent
-
-# Define your PydanticAI result model
-class AgentResult(BaseModel):
-    summary: str
-    action_items: list[str]
-
-# 1. PydanticAI Agent definition
-agent = Agent('gemini-2.5-flash', result_type=AgentResult)
-
-# 2. Equivalent dspyer StatefulNode setup
-node = StatefulNode(
-    name="SummaryAgentNode",
-    input_model=InputSchema,  # Maps to the input data passed to agent.run()
-    output_model=AgentResult, # Maps to PydanticAI's result_type
-    instructions="Process the text and extract summary and action items."
-)
-```
-
-
-## 📊 Telemetry & Visualization Guide
-
-Visualize agent execution, transpilation flow, and validator loop cycles inside **Arize Phoenix**, **Langfuse**, or **Jaeger** with OpenTelemetry tracing.
-
-> [!NOTE]
-> **Trace Sources**: `openinference.instrumentation.dspy.DSPyInstrumentor` instruments and traces the internal DSPy signature/model-level execution spans. `dspyer` emits its own native execution spans separately (under the standard `dspyer` tracer namespace) to trace graph-level step transitions and routing.
-
-```python
-from openinference.instrumentation.dspy import DSPyInstrumentor
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-
-# 1. Configure OpenTelemetry Tracer pointing to your collector (e.g. Phoenix at port 6006)
-otlp_exporter = OTLPSpanExporter(endpoint="http://localhost:6006/v1/traces")
-tracer_provider = TracerProvider()
-tracer_provider.add_span_processor(SimpleSpanProcessor(otlp_exporter))
-trace.set_tracer_provider(tracer_provider)
-
-# 2. Instrument DSPy module calls
-DSPyInstrumentor().instrument()
-```
-
-Launch a local Phoenix server using:
-```bash
-pip install arize-phoenix openinference-instrumentation-dspy opentelemetry-exporter-otlp
-phoenix start
-```
-Then navigate to `http://localhost:6006/` to explore interactive traces for every step execution, correction loop retry, and model signature inputs/outputs.
-
-### 🔍 Inspecting Validation & Self-Correction Loops
-
-When a node output fails to validate against its Pydantic `output_model` schema, `dspyer` automatically logs the validation error stack trace and injects detailed structured metadata into the OpenTelemetry active span attributes. In **Arize Phoenix** or **Langfuse**, you can search for or inspect:
-
-* **`validation.failed`**: Set to `True` when a Pydantic validation exception occurs on the node.
-* **`validation.error.count`**: The number of fields that failed validation in this attempt.
-* **`validation.errors_json`**: A raw JSON array containing all Pydantic error details.
-* **`validation.error.{index}.field`**: The exact field path that failed validation (e.g., `user_profile.age`).
-* **`validation.error.{index}.message`**: The failure message (e.g., `Input should be a valid integer`).
-* **`validation.error.{index}.type`**: The Pydantic error type code (e.g., `int_parsing`).
-* **`validation.error.{index}.input`**: The original invalid value passed to that field.
-
-Additionally, retry attempts are annotated as:
-* **`retry.{attempt}.error`**: The human-readable error feedback sent back to the model for self-correction.
-* **`retry.{attempt}.failed_output`**: The raw JSON payload that failed parsing or validation.
 
 ---
 
