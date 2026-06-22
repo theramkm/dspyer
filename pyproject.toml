@@ -5,7 +5,7 @@ description = "A transpiler from stateful imperative workflows to declarative DS
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "dspy-ai>=2.5.0",
+    "dspy>=3.0.0,<4.0.0",
     "pydantic>=2.0.0,<3.0.0",
 ]
 

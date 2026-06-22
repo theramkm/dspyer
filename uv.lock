@@ -582,23 +582,11 @@ wheels = [
 ]
 
 [[package]]
-name = "dspy-ai"
-version = "3.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "dspy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/3b/9e/e09701f7ac9a9f7dc3d4407eacb022268eb2000b8fcce2e4b76ae08ffafd/dspy_ai-3.2.1.tar.gz", hash = "sha256:d5cb7e0dc1597612a8b49e06f42bc446235e84bd68249fe6adc3287c8184e41b", size = 1220, upload-time = "2026-05-05T19:35:16.765Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e2/37/e4dc75151932629a1a9c20f24f7ea83d080f47d6c19c402ebf2b3536dc8e/dspy_ai-3.2.1-py3-none-any.whl", hash = "sha256:613d0ce08d7965fa6ea078df0923c17cfb38489cb3a7300a0a425a54c70ea396", size = 1170, upload-time = "2026-05-05T19:35:15.429Z" },
-]
-
-[[package]]
 name = "dspyer"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
-    { name = "dspy-ai" },
+    { name = "dspy" },
     { name = "pydantic" },
 ]
 
@@ -613,7 +601,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "dspy-ai", specifier = ">=2.5.0" },
+    { name = "dspy", specifier = ">=3.0.0,<4.0.0" },
     { name = "pydantic", specifier = ">=2.0.0,<3.0.0" },
 ]
 

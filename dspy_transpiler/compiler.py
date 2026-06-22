@@ -144,11 +144,12 @@ class DirectClient:
                 "max_tokens": 4096,
             }
         elif self.provider == "google":
-            api_key_query = f"?key={self.api_key}" if self.api_key else ""
             url = (
                 self.api_base
-                or f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent{api_key_query}"
+                or f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
             )
+            if self.api_key:
+                headers["x-goog-api-key"] = self.api_key
 
             contents = []
             if system_prompt:
@@ -706,13 +707,18 @@ class TranspiledAgentProgram(dspy.Module):
 
     def forward(
         self,
-        max_retries: int = 2,
-        max_steps: int = 15,
-        on_loop_limit: str = "raise",
+        *,
+        _max_retries: int = 2,
+        _max_steps: int = 15,
+        _on_loop_limit: str = "raise",
         **initial_state_kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dspy.Prediction:
         token = _refinement_steps.set(0)
         try:
+            max_retries = initial_state_kwargs.pop("max_retries", _max_retries)
+            max_steps = initial_state_kwargs.pop("max_steps", _max_steps)
+            on_loop_limit = initial_state_kwargs.pop("on_loop_limit", _on_loop_limit)
+
             state = ImmutableState(initial_state_kwargs)
 
             current_node_name = self.entry_point
@@ -784,7 +790,7 @@ class TranspiledAgentProgram(dspy.Module):
                 "step_count": step_count,
             }
             self._last_refinement_steps_taken = self.refinement_steps_taken
-            return final_state
+            return dspy.Prediction(**final_state)
         finally:
             _refinement_steps.reset(token)
 

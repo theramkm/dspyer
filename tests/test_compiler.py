@@ -303,7 +303,8 @@ def test_direct_client_payload_formatting():
         prompt="hi", system_prompt="think first"
     )
     assert "gemini-3.5-flash" in url
-    assert "key=ai-gemini" in url
+    assert "key=" not in url
+    assert headers["x-goog-api-key"] == "ai-gemini"
     assert payload["systemInstruction"]["parts"][0]["text"] == "think first"
 
 
@@ -586,3 +587,163 @@ def test_json_repair_fallback_and_direct():
     assert repair_and_parse_json('some text ```json\n{"foo": "bar"}\n``` other text') == {
         "foo": "bar"
     }
+
+
+def test_transpiled_program_prediction_return(monkeypatch):
+    import dspy
+    from pydantic import BaseModel
+
+    from dspy_transpiler.compiler import AgentTranspiler
+    from dspy_transpiler.graph import Graph, StatefulNode
+
+    class CompilerTestInput(BaseModel):
+        input_text: str
+
+    class CompilerTestOutput(BaseModel):
+        output_text: str
+
+    node_a = StatefulNode(
+        name="NodeA", input_model=CompilerTestInput, output_model=CompilerTestOutput
+    )
+    graph = Graph()
+    graph.add_node(node_a)
+    graph.set_entry_point("NodeA")
+    program = AgentTranspiler.compile(graph)
+
+    class MockOutput:
+        output_text = "test_ok"
+
+    monkeypatch.setattr(program, "predictor_NodeA", lambda **k: MockOutput())
+
+    # Verify that program returns a dspy.Prediction and handles legacy keywords
+    res = program(input_text="hello", max_retries=3, max_steps=5)
+    assert isinstance(res, dspy.Prediction)
+    assert res.output_text == "test_ok"
+    assert res["_metadata"]["step_count"] == 1
+
+
+def test_direct_client_transient_retry_success(monkeypatch):
+    import httpx
+
+    from dspy_transpiler.compiler import DirectClient
+
+    client = DirectClient(
+        provider="openai",
+        model="gpt-4",
+        api_key="sk-test",
+        max_network_retries=2,
+        base_delay=0.01,
+    )
+
+    call_count = 0
+
+    class MockResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+        def raise_for_status(self):
+            if self.status_code != 200:
+                req = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+                res = httpx.Response(self.status_code, request=req)
+                raise httpx.HTTPStatusError("Transient Error", request=req, response=res)
+
+        def json(self):
+            return {"choices": [{"message": {"content": "Retry Success"}}]}
+
+    def mock_post(url, headers, content):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return MockResponse(429)
+        return MockResponse(200)
+
+    # Setup the sync client pool first
+    sync_client = client._get_sync_client()
+    monkeypatch.setattr(sync_client, "post", mock_post)
+
+    res = client.generate_sync("hello")
+    assert res == "Retry Success"
+    assert call_count == 2
+
+
+def test_direct_client_retry_exhaustion(monkeypatch):
+    import httpx
+    import pytest
+
+    from dspy_transpiler.compiler import DirectClient
+
+    client = DirectClient(
+        provider="openai",
+        model="gpt-4",
+        api_key="sk-test",
+        max_network_retries=1,
+        base_delay=0.01,
+    )
+
+    class MockResponse:
+        def __init__(self, status_code):
+            self.status_code = status_code
+
+        def raise_for_status(self):
+            req = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+            res = httpx.Response(self.status_code, request=req)
+            raise httpx.HTTPStatusError("Transient Failure", request=req, response=res)
+
+    sync_client = client._get_sync_client()
+    monkeypatch.setattr(sync_client, "post", lambda *a, **k: MockResponse(500))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        client.generate_sync("hello")
+
+
+def test_telemetry_span_otel_integration(monkeypatch):
+    import sys
+    from unittest.mock import MagicMock
+
+    # Mock opentelemetry modules in sys.modules
+    mock_trace = MagicMock()
+    sys.modules["opentelemetry"] = MagicMock()
+    sys.modules["opentelemetry.trace"] = mock_trace
+
+    import dspy_transpiler.telemetry as tel
+    from dspy_transpiler import telemetry
+
+    monkeypatch.setattr(tel, "HAS_OTEL", True)
+
+    class MockSpan:
+        def __init__(self):
+            self.attributes = {}
+            self.status_code = None
+            self.description = None
+            self.exceptions = []
+
+        def set_attribute(self, key, value):
+            self.attributes[key] = value
+
+        def set_status(self, status):
+            self.status_code = status
+
+        def record_exception(self, e):
+            self.exceptions.append(e)
+
+        def end(self):
+            pass
+
+    class MockTracer:
+        def start_span(self, name, context=None):
+            return MockSpan()
+
+    monkeypatch.setattr(tel, "otel_tracer", MockTracer())
+
+    with telemetry.trace_span("test_node", {"input_key": "input_val"}) as span:
+        assert span.otel_span is not None
+        span.set_attribute("custom_attr", "custom_val")
+        span.set_status("ERROR", "test failure")
+
+    assert span.otel_span.attributes["input.input_key"] == "input_val"
+    assert span.otel_span.attributes["custom_attr"] == "custom_val"
+    assert span.otel_span.status_code is not None
+
+    # Clean up sys.modules after test
+    sys.modules.pop("opentelemetry", None)
+    sys.modules.pop("opentelemetry.trace", None)
