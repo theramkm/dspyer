@@ -19,10 +19,66 @@ In modern AI engineering, manual prompt engineering is dead. We use DSPy to stat
 ### 🤝 The LangGraph & PydanticAI Bridge (Our USP)
 
 In 2026, building production-grade agents presents a trade-off:
-* **LangGraph**: Industry standard for complex, cyclic, stateful workflows, but prompt optimization is manual, slow, and fragile.
-* **DSPy**: Industry standard for algorithmic prompt tuning, but expressing stateful graphs, parallel splits, and loops in raw DSPy signatures is verbose and counter-intuitive.
+* **LangGraph**: The industry standard for master orchestration, cyclic state management, state persistence, and human-in-the-loop flows.
+* **DSPy**: The industry standard for algorithmic prompt optimization and self-correction, but lacks a simple graph representation.
 
-**`dspyer` gives you the best of both worlds.** Write your workflows using a clean, stateful graph topology (inspired by LangGraph and PydanticAI), then compile it with `AgentTranspiler.compile(graph)`. You get the execution control of a graph framework, backed by the full prompt-optimizing power of DSPy teleprompters.
+**`dspyer` allows you to plug DSPy's optimization directly into your existing LangGraph workflows.** Instead of rewriting your entire architecture, you can build or transpile complex reasoning and generation nodes using `dspyer` graphs, and drop the compiled `dspy.Module` directly into your existing LangGraph python functions.
+
+#### 🔌 Drop-In Upgrade: Plugging `dspyer` into an existing LangGraph Node
+
+```python
+from pydantic import BaseModel, Field
+from dspy_transpiler.graph import Graph, StatefulNode
+from dspy_transpiler.compiler import AgentTranspiler
+
+# --- 1. Define and compile the optimizable agent node with dspyer ---
+class AgentInput(BaseModel):
+    query: str
+
+class AgentOutput(BaseModel):
+    answer: str
+    citations: list[str]
+
+agent_node = StatefulNode(
+    name="Agent",
+    input_model=AgentInput,
+    output_model=AgentOutput,
+    instructions="Answer queries using context citations."
+)
+
+graph = Graph()
+graph.add_node(agent_node)
+graph.set_entry_point("Agent")
+
+# Compile to a standard, optimizable dspy.Module
+compiled_agent = AgentTranspiler.compile(graph)
+
+
+# --- 2. Drop it directly into your existing LangGraph node function ---
+from langgraph.graph import StateGraph
+
+class LangGraphState(dict):
+    user_query: str
+    agent_response: str
+    citations: list[str]
+
+# The existing LangGraph node function
+def run_agent_node(state: LangGraphState):
+    # Call the compiled dspyer module like a standard python function
+    prediction = compiled_agent(query=state["user_query"])
+    
+    # Return updates back to the LangGraph state
+    return {
+        "agent_response": prediction.answer,
+        "citations": prediction.citations
+    }
+
+# Build and orchestrate your LangGraph workflow normally
+workflow = StateGraph(LangGraphState)
+workflow.add_node("agent_node", run_agent_node)
+# ... add_edge, set_entry_point, compile ...
+```
+
 
 ---
 
@@ -241,8 +297,6 @@ graph.add_conditional_edges(
     {"proceed": "SummarizerNode", "retry": "WebSearch"}
 )
 ```
-
----
 
 ## 📊 Telemetry & Visualization Guide
 
