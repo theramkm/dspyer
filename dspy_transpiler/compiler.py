@@ -360,6 +360,10 @@ def repair_and_parse_json(raw_text: str) -> Any:
     """
     Extracts, repairs, and parses JSON content from a raw string.
     Handles markdown wrappers (code blocks) and truncated JSON payloads.
+
+    Note: JSON repair mechanisms are heuristic-based and can be lossy (e.g., discarding
+    unmatched delimiters), which may yield valid but incomplete structures on truncated
+    or malformed inputs.
     """
     # 1. Try importing and using json-repair first on the raw text
     try:
@@ -500,6 +504,9 @@ def format_validation_error(err: Exception) -> str:
 _refinement_steps: contextvars.ContextVar[int] = contextvars.ContextVar(
     "refinement_steps", default=-1
 )
+_last_refinement_steps: contextvars.ContextVar[int] = contextvars.ContextVar(
+    "last_refinement_steps", default=0
+)
 
 
 class GraphExecutionError(RuntimeError):
@@ -561,7 +568,7 @@ class TranspiledAgentProgram(dspy.Module):
     def refinement_steps_taken(self) -> int:
         val = _refinement_steps.get()
         if val == -1:
-            return self._last_refinement_steps_taken
+            return _last_refinement_steps.get()
         return val
 
     def _execute_node(
@@ -790,6 +797,7 @@ class TranspiledAgentProgram(dspy.Module):
                 "step_count": step_count,
             }
             self._last_refinement_steps_taken = self.refinement_steps_taken
+            _last_refinement_steps.set(self.refinement_steps_taken)
             return dspy.Prediction(**final_state)
         finally:
             _refinement_steps.reset(token)

@@ -522,6 +522,7 @@ def test_compiler_concurrency_isolation(monkeypatch):
 
     def run_thread(input_val):
         res = program(input_text=input_val, max_retries=1)
+        assert program.refinement_steps_taken == 1
         return res["_metadata"]["refinement_steps_taken"]
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
