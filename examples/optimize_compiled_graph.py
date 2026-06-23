@@ -23,6 +23,7 @@ class AgentState(TypedDict):
 # 2. Define Node Functions (docstrings act as default prompt instructions)
 def clean_node(state: AgentState):
     """Normalize whitespace, remove special characters, and lowercase the text."""
+    _ = dspy  # Mark as LLM node for auto-scaffolding analysis
     text = state.get("input_text", "")
     return {
         "input_text": text,
@@ -33,6 +34,7 @@ def clean_node(state: AgentState):
 
 def analyze_node(state: AgentState):
     """Analyze the cleaned_text and classify sentiment polarity as: positive, negative, or neutral."""
+    _ = dspy  # Mark as LLM node for auto-scaffolding analysis
     cleaned = state.get("cleaned_text", "")
     sentiment_val = "positive" if "happy" in cleaned or "great" in cleaned else "neutral"
     return {

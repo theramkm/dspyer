@@ -198,7 +198,7 @@ Here is a recording of running [examples/hero_demo.py](examples/hero_demo.py) sh
 
 ### 📈 Metrics & Benchmarks
 
-We run a sentiment classification benchmark on a dataset of 20 evaluation examples (see [examples/benchmark.py](examples/benchmark.py)). We measure performance before vs. after prompt optimization (using standard `BootstrapFewShot` teleprompter tuning):
+We run a sentiment classification benchmark on a dataset of 20 evaluation examples (see [examples/benchmark.py](examples/benchmark.py)). We measure performance before vs. after prompt optimization (using standard `BootstrapFewShot` teleprompter tuning). *(Note: This benchmark is run locally under a deterministic mock LLM simulator to demonstrate the execution mechanism and optimization behavior reliably).*
 
 | Phase | Metric (Accuracy) | Latency / Nodes Optimized |
 |---|---|---|
@@ -220,7 +220,7 @@ import dspy
 from dspy.teleprompt import BootstrapFewShot
 from dspy_transpiler import AgentTranspiler, from_langgraph
 
-# 1. Convert your StateGraph topology to dspyer and compile
+# 1. Scaffold your StateGraph topology to dspyer and compile
 dspyer_graph = from_langgraph(langgraph_builder, node_mappings=mappings)
 program = AgentTranspiler.compile(dspyer_graph)
 
@@ -293,7 +293,7 @@ When a validation failure occurs, inspect the active span attributes in Phoenix:
 
 ## 🔄 Scaffolding from an existing LangGraph (`from_langgraph`)
 
-Instead of rewriting your state machine by hand, `dspyer` provides a native topology converter to translate a LangGraph StateGraph topology into a `dspyer` graph structure.
+Instead of rewriting your state machine by hand, `dspyer` provides a native topology scaffolder to bridge a LangGraph StateGraph topology into a `dspyer` graph structure.
 
 For a runnable, behavior-preserving result, you should map your LLM-reasoning nodes explicitly using `node_mappings` with narrow input/output Pydantic schemas. This ensures your nodes receive only the context they need and do not wipe out other state fields:
 
@@ -336,6 +336,9 @@ program = AgentTranspiler.compile(graph)
 
 > [!NOTE]
 > **Scaffold Mode**: `from_langgraph(builder)` with no `node_mappings` scaffolds only the **graph topology** (entry point, edges, branches). Auto-generated nodes use the node's docstring as the LLM instruction and do **not** preserve your original function logic — they ignore node inputs and regenerate state from the instruction alone. For a runnable, behavior-preserving result, pass `node_mappings` with explicit per-node schemas (below).
+
+> [!IMPORTANT]
+> **Static Code Analysis Limitations**: The automatic LLM-detection relies on static AST parsing of the function source code (`inspect.getsource`). Nodes defined as lambdas, dynamic callables, `functools.partial`, or C-extensions cannot be analyzed statically and will safely default to deterministic passthrough nodes (i.e. they will execute native Python code and will not be compiled or optimized by DSPy). If you want such dynamic callables optimized, map them explicitly via `node_mappings`.
 
 ---
 
@@ -383,7 +386,7 @@ dspy.configure(lm=lm)
 ```
 
 ### 🪄 5. Standalone `@self_correcting` Decorator
-If you want standard DSPy self-correction capabilities without the Graph compilation ceremony, apply `@self_correcting` directly to `dspy.Module` classes or individual `dspy.Predict` / `dspy.COTS` instances:
+If you want standard DSPy self-correction capabilities without the Graph compilation ceremony, apply `@self_correcting` directly to `dspy.Module` classes or individual `dspy.Predict` / `dspy.ChainOfThought` instances:
 
 ```python
 from dspy_transpiler import self_correcting
@@ -393,7 +396,7 @@ class SolverOutput(BaseModel):
     answer: str
     confidence: float = Field(gt=0.8)
 
-# 1. Class-level decoration (auto-wraps all Predict/COTS attributes inside)
+# 1. Class-level decoration (auto-wraps all Predict/ChainOfThought attributes inside)
 @self_correcting(schema=SolverOutput, max_retries=3)
 class SolverModule(dspy.Module):
     def __init__(self):

@@ -145,7 +145,7 @@ def wrap_predictor(
     if getattr(predictor, "_wrapped_self_correcting", False):
         return predictor
 
-    orig_forward = predictor.forward
+    orig_forward = object.__getattribute__(predictor, "forward")
 
     # If schema is not explicitly provided, look for a Pydantic model annotation in signature output fields
     target_schema = schema
@@ -165,7 +165,14 @@ def wrap_predictor(
         bound.apply_defaults()
         current_inputs = bound.arguments
 
-        prediction = orig_forward(*args, **kwargs)
+        # Temporarily restore original forward to allow calling the module directly
+        # and triggering the standard __call__ machinery (which sets up DSPy traces etc)
+        # without warning.
+        predictor.forward = orig_forward
+        try:
+            prediction = predictor.__class__.__call__(predictor, *args, **kwargs)
+        finally:
+            predictor.forward = new_forward
 
         attempt = 0
         while attempt < max_retries:
