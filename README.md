@@ -122,7 +122,9 @@ Deterministic nodes run as plain Python (fast, exact, never hallucinated). Only 
 
 ### 1. Self-correction
 
-**On a single module: one decorator.** The fastest way in. Wrap any `dspy.Module`/`dspy.Predict` and bad outputs repair themselves against your schema:
+**On a single function or module: one decorator.** Wrap any typed Python function or `dspy.Module` and bad outputs repair themselves against your schema.
+
+For zero-boilerplate, decorate a plain typed function (the inputs map to prompt fields, the docstring acts as the instructions, and the return annotation specifies the output schema):
 
 ```python
 from dspy_transpiler import self_correcting
@@ -132,6 +134,18 @@ class SolverOutput(BaseModel):
     answer: str
     steps: list[str]
 
+@self_correcting(max_retries=3)
+def solve(question: str) -> SolverOutput:
+    """Answer the question and outline the logic steps."""
+    pass
+
+# Run it directly; returns a SolverOutput object
+result = solve(question="What is the capital of France?")
+```
+
+Alternatively, wrap a standard `dspy.Module` class:
+
+```python
 @self_correcting(schema=SolverOutput, max_retries=3)
 class Solver(dspy.Module):
     def __init__(self):

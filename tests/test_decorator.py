@@ -249,3 +249,110 @@ def test_prompt_configs_serialization(tmp_path):
 
     # Check load_prompts
     program.load_prompts(config_path)
+
+
+def test_function_decorator_success(monkeypatch):
+    class SimpleOutput(BaseModel):
+        answer: str
+        confidence: float
+
+    class MockPrediction:
+        def __init__(self):
+            self.answer = "Berlin"
+            self.confidence = 0.9
+
+        def items(self):
+            return [("answer", self.answer), ("confidence", self.confidence)]
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    called = 0
+
+    def mock_predict_forward(*args, **kwargs):
+        nonlocal called
+        called += 1
+        return MockPrediction()
+
+    monkeypatch.setattr(dspy.Predict, "forward", mock_predict_forward)
+
+    @self_correcting(max_retries=2)
+    def my_llm_step(question: str) -> SimpleOutput:
+        """Extract capital and confidence."""
+        raise NotImplementedError()
+
+    res = my_llm_step(question="What is the capital of Germany?")
+    assert called == 1
+    assert isinstance(res, SimpleOutput)
+    assert res.answer == "Berlin"
+    assert res.confidence == 0.9
+
+
+def test_function_decorator_retry_and_success(monkeypatch):
+    class SimpleOutput(BaseModel):
+        answer: str
+        confidence: float = Field(gt=0.5)
+
+    class MockInvalidPrediction:
+        def __init__(self):
+            self.answer = "Berlin"
+            self.confidence = 0.2  # Fails gt=0.5 validation
+
+        def items(self):
+            return [("answer", self.answer), ("confidence", self.confidence)]
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    class MockValidPrediction:
+        def __init__(self):
+            self.answer = "Berlin"
+            self.confidence = 0.8  # Passes validation
+
+        def items(self):
+            return [("answer", self.answer), ("confidence", self.confidence)]
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    predict_calls = 0
+    refine_calls = 0
+
+    def mock_predict_dispatch(self_inst, *args, **kwargs):
+        nonlocal predict_calls, refine_calls
+        if "Refine" in getattr(self_inst.signature, "__name__", ""):
+            refine_calls += 1
+            return MockValidPrediction()
+        else:
+            predict_calls += 1
+            return MockInvalidPrediction()
+
+    monkeypatch.setattr(dspy.Predict, "forward", mock_predict_dispatch)
+
+    @self_correcting(max_retries=3)
+    def my_retry_step(question: str) -> SimpleOutput:
+        """Identify capital and verify confidence."""
+        raise NotImplementedError()
+
+    res = my_retry_step(question="What is the capital of Germany?")
+    assert predict_calls == 1
+    assert refine_calls == 1
+    assert isinstance(res, SimpleOutput)
+    assert res.answer == "Berlin"
+    assert res.confidence == 0.8
+
+
+def test_function_decorator_errors():
+    # Missing return annotation
+    with pytest.raises(TypeError, match="must have a return type annotation"):
+
+        @self_correcting(max_retries=2)
+        def step_no_return(x: str):
+            pass
+
+    # Return annotation is not a BaseModel
+    with pytest.raises(TypeError, match="must have a return type annotation"):
+
+        @self_correcting(max_retries=2)
+        def step_invalid_return(x: str) -> str:
+            raise NotImplementedError()

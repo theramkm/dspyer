@@ -381,9 +381,68 @@ def self_correcting(
             # 2. Predictor instance wrapping
             return wrap_predictor(target, schema, max_retries, refine_instructions, validator)
 
+        elif inspect.isfunction(target):
+            # 3. Typed function wrapping
+            sig = inspect.signature(target)
+
+            # Check return type schema
+            return_anno = sig.return_annotation
+            if (
+                return_anno is inspect.Signature.empty
+                or not isinstance(return_anno, type)
+                or not issubclass(return_anno, BaseModel)
+            ):
+                raise TypeError(
+                    f"Decorated function '{target.__name__}' must have a return type annotation that is a subclass of pydantic.BaseModel"
+                )
+
+            target_schema = return_anno
+
+            # Determine instructions
+            instructions = (
+                target.__doc__ or f"Execute logic to produce {target_schema.__name__} outputs."
+            )
+            instructions = instructions.strip()
+
+            # Build input & output fields for the signature
+            fields = {}
+            for param_name, param in sig.parameters.items():
+                anno = param.annotation if param.annotation is not inspect.Parameter.empty else str
+                desc = param_name.replace("_", " ").title()
+                fields[param_name] = (anno, dspy.InputField(desc=desc))
+
+            for name, field_info in target_schema.model_fields.items():
+                desc = field_info.description or name.replace("_", " ").title()
+                fields[name] = (field_info.annotation, dspy.OutputField(desc=desc))
+
+            # Compile dynamic signature
+            dyn_sig = dspy.make_signature(
+                signature=fields,
+                instructions=instructions,
+                signature_name=f"{target_schema.__name__}Signature",
+            )
+
+            # Build and wrap predictor
+            predictor = dspy.Predict(dyn_sig)
+            wrapped_predictor = wrap_predictor(
+                predictor, target_schema, max_retries, refine_instructions, validator
+            )
+
+            @functools.wraps(target)
+            def wrapper(*args, **kwargs):
+                bound = sig.bind(*args, **kwargs)
+                bound.apply_defaults()
+                # Run the self-correcting predictor
+                prediction = wrapped_predictor(**bound.arguments)
+                # Parse and validate returned outputs back into target BaseModel
+                parsed, _ = parse_and_validate(prediction, target_schema, validator)
+                return parsed
+
+            return wrapper
+
         else:
             raise TypeError(
-                "@self_correcting decorator must wrap a dspy.Module class or a dspy.Predict instance"
+                "@self_correcting decorator must wrap a dspy.Module class, a dspy.Predict instance, or a typed Python function"
             )
 
     return decorator
