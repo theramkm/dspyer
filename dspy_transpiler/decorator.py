@@ -140,6 +140,8 @@ def wrap_predictor(
     max_retries: int,
     refine_instructions: Optional[str],
     validator: Optional[Callable[[Any], bool]] = None,
+    dataset_log_path: Optional[str] = None,
+    redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
 ) -> Any:
     """Wraps an individual dspy.Predict instance with a correction retry loop."""
     if getattr(predictor, "_wrapped_self_correcting", False):
@@ -163,7 +165,14 @@ def wrap_predictor(
         sig = inspect.signature(orig_forward)
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
-        current_inputs = bound.arguments
+        current_inputs = {}
+        for k, v in bound.arguments.items():
+            if k == "self":
+                continue
+            if k == "kwargs" and isinstance(v, dict):
+                current_inputs.update(v)
+            else:
+                current_inputs[k] = v
 
         # Temporarily restore original forward to allow calling the module directly
         # and triggering the standard __call__ machinery (which sets up DSPy traces etc)
@@ -177,7 +186,16 @@ def wrap_predictor(
         attempt = 0
         while attempt < max_retries:
             try:
-                parse_and_validate(prediction, target_schema, validator)
+                parsed_model, raw_data = parse_and_validate(prediction, target_schema, validator)
+                if attempt > 0 and dataset_log_path is not None:
+                    from dspy_transpiler.utils import log_self_correction_example
+
+                    log_self_correction_example(
+                        dataset_log_path,
+                        current_inputs,
+                        parsed_model.model_dump(),
+                        redact_hook,
+                    )
                 return prediction
             except ValidationError as val_err:
                 attempt += 1
@@ -259,6 +277,8 @@ def self_correcting(
     max_retries: int = 2,
     refine_instructions: Optional[str] = None,
     validator: Optional[Callable[[Any], bool]] = None,
+    dataset_log_path: Optional[str] = None,
+    redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
 ) -> Callable[[Any], Any]:
     """
     Decorator to wrap a dspy.Module class or a dspy.Predict instance with schema-enforced
@@ -280,7 +300,13 @@ def self_correcting(
                             self,
                             name,
                             wrap_predictor(
-                                attr, schema, max_retries, refine_instructions, validator
+                                attr,
+                                schema,
+                                max_retries,
+                                refine_instructions,
+                                validator,
+                                dataset_log_path,
+                                redact_hook,
                             ),
                         )
 
@@ -302,7 +328,18 @@ def self_correcting(
                     attempt = 0
                     while attempt < max_retries:
                         try:
-                            parse_and_validate(prediction, schema, validator)
+                            parsed_model, raw_data = parse_and_validate(
+                                prediction, schema, validator
+                            )
+                            if attempt > 0 and dataset_log_path is not None:
+                                from dspy_transpiler.utils import log_self_correction_example
+
+                                log_self_correction_example(
+                                    dataset_log_path,
+                                    current_inputs,
+                                    parsed_model.model_dump(),
+                                    redact_hook,
+                                )
                             return prediction
                         except ValidationError as val_err:
                             attempt += 1
@@ -379,7 +416,15 @@ def self_correcting(
 
         elif hasattr(target, "signature") and hasattr(target, "forward"):
             # 2. Predictor instance wrapping
-            return wrap_predictor(target, schema, max_retries, refine_instructions, validator)
+            return wrap_predictor(
+                target,
+                schema,
+                max_retries,
+                refine_instructions,
+                validator,
+                dataset_log_path,
+                redact_hook,
+            )
 
         elif inspect.isfunction(target):
             # 3. Typed function wrapping
@@ -425,7 +470,13 @@ def self_correcting(
             # Build and wrap predictor
             predictor = dspy.Predict(dyn_sig)
             wrapped_predictor = wrap_predictor(
-                predictor, target_schema, max_retries, refine_instructions, validator
+                predictor,
+                target_schema,
+                max_retries,
+                refine_instructions,
+                validator,
+                dataset_log_path,
+                redact_hook,
             )
 
             @functools.wraps(target)

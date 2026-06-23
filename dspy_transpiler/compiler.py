@@ -10,7 +10,7 @@ import time
 import urllib.error
 import urllib.request
 import warnings
-from typing import Any, Dict, Optional, Union, get_args, get_origin
+from typing import Any, Callable, Dict, Optional, Union, get_args, get_origin
 
 import dspy
 from pydantic import BaseModel, Field
@@ -612,7 +612,12 @@ class TranspiledAgentProgram(dspy.Module):
     an execution Graph. Supports branching, loops, and self-correction.
     """
 
-    def __init__(self, graph: Graph):
+    def __init__(
+        self,
+        graph: Graph,
+        dataset_log_path: Optional[str] = None,
+        redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+    ):
         super().__init__()
         if graph.entry_point is None:
             raise ValueError("Graph entry point must be set before compilation.")
@@ -622,6 +627,8 @@ class TranspiledAgentProgram(dspy.Module):
         self.conditional_edges = graph.conditional_edges
         self._nodes_map = graph.nodes
         self._last_refinement_steps_taken = 0
+        self.dataset_log_path = dataset_log_path
+        self.redact_hook = redact_hook
 
         # Validate that no node's input model has fields colliding with reserved execution control keywords
         reserved = {"max_retries", "max_steps", "on_loop_limit"}
@@ -838,6 +845,21 @@ class TranspiledAgentProgram(dspy.Module):
                             updated_rationales[node.name] = str(rationale_val)
                             _rationales.set(updated_rationales)
 
+                    if attempt > 0:
+                        node_log_path = (
+                            getattr(node, "dataset_log_path", None) or self.dataset_log_path
+                        )
+                        node_redact_hook = getattr(node, "redact_hook", None) or self.redact_hook
+                        if node_log_path is not None:
+                            from dspy_transpiler.utils import log_self_correction_example
+
+                            log_self_correction_example(
+                                node_log_path,
+                                node_inputs,
+                                validated_patch.model_dump(),
+                                node_redact_hook,
+                            )
+
                     break  # Validation succeeded, break retry loop
                 except Exception as validation_err:
                     span.record_validation_error(validation_err)
@@ -1047,8 +1069,14 @@ class AgentTranspiler:
     """Public interface to transpile state machines into DSPy programs."""
 
     @staticmethod
-    def compile(graph: Graph) -> TranspiledAgentProgram:
-        return TranspiledAgentProgram(graph=graph)
+    def compile(
+        graph: Graph,
+        dataset_log_path: Optional[str] = None,
+        redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+    ) -> TranspiledAgentProgram:
+        return TranspiledAgentProgram(
+            graph=graph, dataset_log_path=dataset_log_path, redact_hook=redact_hook
+        )
 
 
 # =====================================================================

@@ -4,6 +4,7 @@ from dspy_transpiler.converter import from_langgraph
 from dspy_transpiler.decorator import self_correcting
 from dspy_transpiler.graph import Graph, StatefulNode
 from dspy_transpiler.state import ImmutableState
+from dspy_transpiler.utils import load_logged_dataset
 
 __version__ = "0.2.0"
 
@@ -16,4 +17,5 @@ __all__ = [
     "ImmutableState",
     "from_langgraph",
     "self_correcting",
+    "load_logged_dataset",
 ]
