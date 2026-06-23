@@ -879,18 +879,15 @@ class TranspiledAgentProgram(dspy.Module):
                         )
 
                     break  # Validation succeeded, break retry loop
-                except Exception as validation_err:
+                except ValidationError as validation_err:
                     span.record_validation_error(validation_err)
-                    if isinstance(validation_err, ValidationError):
-                        for pydantic_error in validation_err.errors():
-                            loc_str = (
-                                ".".join(str(x) for x in pydantic_error["loc"])
-                                if pydantic_error.get("loc")
-                                else "unknown"
-                            )
-                            all_failed_fields.append(loc_str)
-                    else:
-                        all_failed_fields.append("validation_error")
+                    for pydantic_error in validation_err.errors():
+                        loc_str = (
+                            ".".join(str(x) for x in pydantic_error["loc"])
+                            if pydantic_error.get("loc")
+                            else "unknown"
+                        )
+                        all_failed_fields.append(loc_str)
                     attempt += 1
                     _refinement_steps.set(_refinement_steps.get() + 1)
 
