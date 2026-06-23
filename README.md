@@ -2,7 +2,7 @@
 
 # ⚡ dspyer
 
-**Reliable, optimizable LLM steps with zero DSPy boilerplate: typed outputs, automatic self-correction, and one-call prompt tuning. Built to drop straight into your existing agent stack.**
+**Reliable, optimizable LLM steps with zero DSPy boilerplate: typed outputs, automatic self-correction, and one-call prompt tuning.**
 
 [![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
 [![Python 3.10-3.14](https://img.shields.io/badge/python-3.10--3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
@@ -25,34 +25,19 @@ If you are building production agents with LangChain, LangGraph, or custom LLM A
 
 **Stanford DSPy** solves this by treating prompts as *parameters* that can be compiled and optimized against a dataset. However, adopting DSPy directly requires learning a complex new syntax (Signatures, Predictors, Modules) and rewriting your entire codebase.
 
-**dspyer** acts as an ergonomic bridge: it transpiles standard Python functions, Pydantic schemas, and agent graphs into optimized `dspy.Module` instances under the hood, allowing you to drop them straight back into your existing orchestrator.
-
----
-
-## Core Concept
-
-You write standard, PEP 484 type-hinted Python functions. `dspyer` dynamically compiles them into DSPy signatures, wraps them with schema-validated retry loops, runs them over high-performance connection pools, and exposes them as native `dspy.Module` objects ready for optimization.
+**dspyer** acts as an ergonomic bridge: it transpiles standard Python functions, Pydantic schemas, and agent graphs into optimized `dspy.Module` instances under the hood, allowing you to drop them straight back into your existing orchestrator. You write standard, PEP 484 type-hinted Python functions; `dspyer` compiles them into optimizable `dspy.Module` objects you can hand to any DSPy teleprompter.
 
 ---
 
 ## Key Benefits
 
-### 1. Standard DSPy Compilation (No Vendor Lock-In)
-`dspyer` compiles your code directly into a standard `dspy.Module`. You get access to the entire DSPy optimizer ecosystem (`BootstrapFewShot`, `MIPROv2`, etc.). You can save and load your optimized prompts using standard `dspy.save` and `dspy.load` JSON configs.
+* **No vendor lock-in**: Compiles to a standard `dspy.Module`; use any DSPy optimizer and `dspy.save`/`load`.
+* **Self-correction loops**: Failed Pydantic validation auto-generates feedback and re-queries the model until it conforms.
+* **Telemetry and validation reports**: OpenTelemetry spans plus per-node failure summaries.
+* **Dataset flywheel**: Successful self-corrections are logged as input/output pairs you can replay as a trainset.
+* **`DirectLM` runtime**: Bypasses LiteLLM with persistent pooled HTTP connections.
 
-### 2. Zero-Config Self-Correction Loops
-When an LLM output fails Pydantic schema validation, `dspyer` intercepts the error, auto-generates natural-language feedback detailing the failed fields, and automatically re-queries the model (up to your retry budget) until it conforms. Any Python runtime errors (like `NameError` or `AttributeError`) within custom validator functions fail fast immediately rather than wasting API retry budgets on loops.
-
-### 3. Production Telemetry & Validation Reports
-Production-level observability is built-in:
-*   **OpenTelemetry**: Trace every retry cycle, failed payload, and validation error as span attributes.
-*   **Batch Validation Reports**: Compile validation logs (`validation_log_path`) into structured, human-readable summary reports showing node error rates and failing Pydantic fields.
-
-### 4. Self-Correction Dataset Flywheel
-Validation failures that successfully repair themselves are automatically logged via `dataset_log_path`. You can reload these logs using the loader utility to compile high-precision few-shot training datasets containing input-to-corrected-output pairs, creating an automated data loop to optimize subsequent prompt runs.
-
-### 5. High-Performance Runtime (DirectLM)
-To prevent runtime overhead, `dspyer` features a built-in `DirectLM` adapter that completely bypasses LiteLLM at runtime. It maintains persistent HTTP connection pools (`httpx` clients with connection keepalive limits) to eliminate setup latency.
+Each is shown with runnable code under [Core Capabilities](#core-capabilities).
 
 ---
 
@@ -104,7 +89,14 @@ graph.add_node(node)
 graph.set_entry_point("Synthesizer")
 program = AgentTranspiler.compile(graph)
 
-# 3. Offline mock: omits the citation until it sees correction feedback
+# 3. Offline mock: configuration and run
+# (Hiding MockLM details for readability; click below to expand)
+```
+
+<details>
+<summary>Click to view MockLM configuration (for offline testing)</summary>
+
+```python
 class MockLM(dspy.LM):
     def __init__(self): super().__init__(model="mock")
     def forward(self, prompt=None, messages=None, **kw):
@@ -114,6 +106,10 @@ class MockLM(dspy.LM):
         return MockCompletionResult(good if saw_feedback else bad, "mock")
 
 dspy.configure(lm=MockLM())
+```
+</details>
+
+```python
 r = program(query="What license is dspyer under?")
 
 print("Answer:   ", r.answer)                                   # Apache-2.0 [doc_1].
@@ -142,6 +138,7 @@ class SolverOutput(BaseModel):
 @self_correcting(max_retries=3)
 def solve(question: str) -> SolverOutput:
     """Answer the question and outline the logic steps."""
+    # Body is intentionally empty; dspyer generates the call from the signature
     pass
 
 # Returns a SolverOutput instance
@@ -180,7 +177,7 @@ optimized.save_prompts("agent_config.json")
 production_program.load_prompts("agent_config.json")
 ```
 
-On our bundled sentiment benchmark (run against a simulated model backend in [`examples/benchmark.py`](examples/benchmark.py) to demonstrate the prompt optimization loop programmatically), optimization improves accuracy from **60% to 90%** with only the reasoning node tuned.
+On a bundled sentiment benchmark ([`examples/benchmark.py`](examples/benchmark.py), run with a simulated backend), optimization lifts accuracy **60% → 90%**, tuning only the reasoning node.
 
 ### 3. Orchestrator Integration (LangGraph)
 You do not need to replace your orchestrator. You can compile individual `dspyer` nodes and invoke them inside existing LangGraph nodes:
@@ -262,18 +259,13 @@ trainset = load_logged_dataset(
 
 ---
 
-## Feature Reference
+## Additional References
 
 | Feature | Summary |
 |---|---|
-| `@self_correcting` | One-line schema-validated retry loop for plain functions or `dspy.Module` classes. |
-| `StatefulNode` | Per-node configuration specifying Pydantic schemas, retry budgets, and custom refiners. |
-| `use_cot=True` | Injects chain-of-thought rationales dynamically without polluting your output schemas. |
+| `use_cot=True` | Injects chain-of-thought rationales dynamically without polluting output schemas. |
 | `ImmutableState.merge()` | Standard merge policies (`last_write_wins`, `combine_lists`, `raise`) to reconcile parallel branches. |
-| `from_langgraph()` | Scaffold existing LangGraph topologies, isolating LLM reasoning nodes. |
-| `save_prompts` / `load_prompts` | Save and load compiled node instructions to and from JSON. |
-| `DirectLM` | High-performance adapter bypassing LiteLLM with persistent HTTP connection pools. |
-| Batch Validation Reports | Track schema failure rates and identify struggling nodes and validation fields. |
+| `StatefulNode` parameters | Per-node `max_retries` and custom `refine_instructions` configurations. |
 
 ---
 
