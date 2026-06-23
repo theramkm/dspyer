@@ -193,7 +193,7 @@ program = AgentTranspiler.compile(graph)
 
 ### 4. Observability
 
-Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and every retry cycle, failed payload, and Pydantic error shows up as span attributes (`validation.failed`, `retry.{n}.failed_output`, `retry.{n}.error`). Install the extra: `pip install "dspyer[otel] @ git+https://github.com/theramkm/dspyer.git"`. See `notebooks/dspyer_playground.ipynb` for a fully interactive trace visualization example.
+Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and every retry cycle, failed payload, and Pydantic error shows up as span attributes (`validation.failed`, `retry.{n}.failed_output`, `retry.{n}.error`). Install the extra: `pip install "dspyer[otel] @ git+https://github.com/theramkm/dspyer.git"`. See [4. Observability](#4-observability) / [dspyer_playground.ipynb](notebooks/dspyer_playground.ipynb).
 
 ---
 
