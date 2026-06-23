@@ -12,7 +12,7 @@
 
 ---
 
-![dspyer Architecture Flow](assets/hero_demo.svg)
+![dspyer Architecture Flow](https://raw.githubusercontent.com/theramkm/dspyer/main/assets/hero_demo.svg)
 
 ---
 
