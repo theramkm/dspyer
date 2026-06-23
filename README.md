@@ -60,7 +60,7 @@ To prevent runtime overhead, `dspyer` features a built-in `DirectLM` adapter tha
 
 ## Install
 
-> **Pre-release (`0.2.0`)**: Install directly from GitHub:
+> **Pre-release (`0.3.0`)**: Install directly from GitHub:
 
 ```bash
 pip install git+https://github.com/theramkm/dspyer.git
@@ -262,7 +262,7 @@ Node: Synthesizer
 
 ## Project Status
 
-Pre-release (`0.2.0`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 66-case test suite. Issues and PRs are welcome.
+Pre-release (`0.3.0`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 66-case test suite. Issues and PRs are welcome.
 
 ## License
 
