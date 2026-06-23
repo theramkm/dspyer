@@ -30,4 +30,4 @@ jobs:
           enable-cache: true
 
       - name: Deploy to GitHub Pages
-        run: uv run mkdocs gh-deploy --force
+        run: uv run --group dev mkdocs gh-deploy --force
