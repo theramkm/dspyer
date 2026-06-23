@@ -142,6 +142,7 @@ def wrap_predictor(
     validator: Optional[Callable[[Any], bool]] = None,
     dataset_log_path: Optional[str] = None,
     redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+    validation_log_path: Optional[str] = None,
 ) -> Any:
     """Wraps an individual dspy.Predict instance with a correction retry loop."""
     if getattr(predictor, "_wrapped_self_correcting", False):
@@ -184,6 +185,7 @@ def wrap_predictor(
             predictor.forward = new_forward
 
         attempt = 0
+        all_failed_fields: list[str] = []
         while attempt < max_retries:
             try:
                 parsed_model, raw_data = parse_and_validate(prediction, target_schema, validator)
@@ -196,9 +198,21 @@ def wrap_predictor(
                         parsed_model.model_dump(),
                         redact_hook,
                     )
+                if validation_log_path is not None:
+                    from dspy_transpiler.utils import log_validation_event
+                    log_validation_event(
+                        validation_log_path,
+                        node_name=target_schema.__name__,
+                        success=True,
+                        retries_taken=attempt,
+                        failed_fields=all_failed_fields,
+                    )
                 return prediction
             except ValidationError as val_err:
                 attempt += 1
+                for err in val_err.errors():
+                    loc_str = ".".join(str(x) for x in err["loc"]) if err.get("loc") else "unknown"
+                    all_failed_fields.append(loc_str)
 
                 # Format natural language feedback
                 feedback_lines = []
@@ -220,6 +234,15 @@ def wrap_predictor(
                     pass
 
                 if attempt >= max_retries:
+                    if validation_log_path is not None:
+                        from dspy_transpiler.utils import log_validation_event
+                        log_validation_event(
+                            validation_log_path,
+                            node_name=target_schema.__name__,
+                            success=False,
+                            retries_taken=attempt,
+                            failed_fields=all_failed_fields,
+                        )
                     raise val_err
 
                 # Build refinement signature dynamically on the predictor
@@ -279,6 +302,7 @@ def self_correcting(
     validator: Optional[Callable[[Any], bool]] = None,
     dataset_log_path: Optional[str] = None,
     redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+    validation_log_path: Optional[str] = None,
 ) -> Callable[[Any], Any]:
     """
     Decorator to wrap a dspy.Module class or a dspy.Predict instance with schema-enforced
@@ -307,6 +331,7 @@ def self_correcting(
                                 validator,
                                 dataset_log_path,
                                 redact_hook,
+                                validation_log_path,
                             ),
                         )
 
@@ -326,6 +351,7 @@ def self_correcting(
                     prediction = orig_forward(self, *args, **kwargs)
 
                     attempt = 0
+                    all_failed_fields: list[str] = []
                     while attempt < max_retries:
                         try:
                             parsed_model, raw_data = parse_and_validate(
@@ -340,9 +366,21 @@ def self_correcting(
                                     parsed_model.model_dump(),
                                     redact_hook,
                                 )
+                            if validation_log_path is not None:
+                                from dspy_transpiler.utils import log_validation_event
+                                log_validation_event(
+                                    validation_log_path,
+                                    node_name=schema.__name__,
+                                    success=True,
+                                    retries_taken=attempt,
+                                    failed_fields=all_failed_fields,
+                                )
                             return prediction
                         except ValidationError as val_err:
                             attempt += 1
+                            for err in val_err.errors():
+                                loc_str = ".".join(str(x) for x in err["loc"]) if err.get("loc") else "unknown"
+                                all_failed_fields.append(loc_str)
 
                             # Format error message
                             feedback_lines = []
@@ -363,6 +401,15 @@ def self_correcting(
                                 pass
 
                             if attempt >= max_retries:
+                                if validation_log_path is not None:
+                                    from dspy_transpiler.utils import log_validation_event
+                                    log_validation_event(
+                                        validation_log_path,
+                                        node_name=schema.__name__,
+                                        success=False,
+                                        retries_taken=attempt,
+                                        failed_fields=all_failed_fields,
+                                    )
                                 raise val_err
 
                             # Resolve or instantiate module refiner dynamically
@@ -424,6 +471,7 @@ def self_correcting(
                 validator,
                 dataset_log_path,
                 redact_hook,
+                validation_log_path,
             )
 
         elif inspect.isfunction(target):
@@ -477,6 +525,7 @@ def self_correcting(
                 validator,
                 dataset_log_path,
                 redact_hook,
+                validation_log_path,
             )
 
             @functools.wraps(target)

@@ -13,7 +13,7 @@ import warnings
 from typing import Any, Callable, Dict, Optional, Union, get_args, get_origin
 
 import dspy
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import PydanticUndefined
 
 from dspy_transpiler.graph import Graph, StatefulNode
@@ -617,6 +617,7 @@ class TranspiledAgentProgram(dspy.Module):
         graph: Graph,
         dataset_log_path: Optional[str] = None,
         redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+        validation_log_path: Optional[str] = None,
     ):
         super().__init__()
         if graph.entry_point is None:
@@ -629,6 +630,7 @@ class TranspiledAgentProgram(dspy.Module):
         self._last_refinement_steps_taken = 0
         self.dataset_log_path = dataset_log_path
         self.redact_hook = redact_hook
+        self.validation_log_path = validation_log_path
 
         # Validate that no node's input model has fields colliding with reserved execution control keywords
         reserved = {"max_retries", "max_steps", "on_loop_limit"}
@@ -752,6 +754,10 @@ class TranspiledAgentProgram(dspy.Module):
                             f"but it was not found in the workflow state."
                         )
 
+        node_validation_log_path = (
+            getattr(node, "validation_log_path", None) or self.validation_log_path
+        )
+
         # Trace execution of this node
         with trace_span(f"node.{node.name}", node_inputs) as span:
             # Execute initial attempt
@@ -769,6 +775,7 @@ class TranspiledAgentProgram(dspy.Module):
                 ) from pred_err
 
             attempt = 0
+            all_failed_fields: list[str] = []
             while True:
                 # Extract outputs and attempt parsing for string fields that expect structured types
                 raw_outputs = {}
@@ -860,13 +867,38 @@ class TranspiledAgentProgram(dspy.Module):
                                 node_redact_hook,
                             )
 
+                    if node_validation_log_path is not None:
+                        from dspy_transpiler.utils import log_validation_event
+                        log_validation_event(
+                            node_validation_log_path,
+                            node_name=node.name,
+                            success=True,
+                            retries_taken=attempt,
+                            failed_fields=all_failed_fields,
+                        )
+
                     break  # Validation succeeded, break retry loop
                 except Exception as validation_err:
                     span.record_validation_error(validation_err)
+                    if isinstance(validation_err, ValidationError):
+                        for pydantic_error in validation_err.errors():
+                            loc_str = ".".join(str(x) for x in pydantic_error["loc"]) if pydantic_error.get("loc") else "unknown"
+                            all_failed_fields.append(loc_str)
+                    else:
+                        all_failed_fields.append("validation_error")
                     attempt += 1
                     _refinement_steps.set(_refinement_steps.get() + 1)
 
                     if attempt > effective_max_retries:
+                        if node_validation_log_path is not None:
+                            from dspy_transpiler.utils import log_validation_event
+                            log_validation_event(
+                                node_validation_log_path,
+                                node_name=node.name,
+                                success=False,
+                                retries_taken=effective_max_retries,
+                                failed_fields=all_failed_fields,
+                            )
                         span.set_status("ERROR", str(validation_err))
                         feedback = format_validation_error(validation_err)
                         raise GraphExecutionError(
@@ -1073,9 +1105,13 @@ class AgentTranspiler:
         graph: Graph,
         dataset_log_path: Optional[str] = None,
         redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+        validation_log_path: Optional[str] = None,
     ) -> TranspiledAgentProgram:
         return TranspiledAgentProgram(
-            graph=graph, dataset_log_path=dataset_log_path, redact_hook=redact_hook
+            graph=graph,
+            dataset_log_path=dataset_log_path,
+            redact_hook=redact_hook,
+            validation_log_path=validation_log_path,
         )
 
 

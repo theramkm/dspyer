@@ -207,7 +207,52 @@ program = AgentTranspiler.compile(graph)
 
 ### 4. Observability
 
-Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and every retry cycle, failed payload, and Pydantic error shows up as span attributes (`validation.failed`, `retry.{n}.failed_output`, `retry.{n}.error`). Install the extra: `pip install "dspyer[otel] @ git+https://github.com/theramkm/dspyer.git"`. A runnable setup is in [`notebooks/dspyer_playground.ipynb`](notebooks/dspyer_playground.ipynb).
+#### Native OpenTelemetry Tracing
+Point it at Arize Phoenix, Langfuse, or Jaeger and every retry cycle, failed payload, and Pydantic error shows up as span attributes (`validation.failed`, `retry.{n}.failed_output`, `retry.{n}.error`). Install the extra: `pip install "dspyer[otel] @ git+https://github.com/theramkm/dspyer.git"`. A runnable setup is in [`notebooks/dspyer_playground.ipynb`](notebooks/dspyer_playground.ipynb).
+
+#### Batch Validation Reports
+In production, self-correcting graphs mask LLM failures: a valid final output might have required three retry cycles under the hood, increasing latency and cost. 
+
+Configure `validation_log_path` on either the `@self_correcting` decorator or during transpiler compilation to write structured validation events to a local JSONL file:
+
+```python
+# Via decorator
+@self_correcting(max_retries=3, validation_log_path="logs/validation.jsonl")
+def my_step(question: str) -> SimpleOutput:
+    ...
+
+# Via transpiler compiler
+program = AgentTranspiler.compile(graph, validation_log_path="logs/validation.jsonl")
+```
+
+Then generate a formatted summary report to pinpoint which nodes are struggling and which Pydantic fields fail most frequently:
+
+```python
+from dspy_transpiler.utils import generate_validation_report
+
+report = generate_validation_report("logs/validation.jsonl")
+print(report)
+```
+
+Example report output:
+```text
+==================================================
+           dspyer Batch Validation Report
+==================================================
+
+Node: Solve
+--------------------------------------------------
+  Total Runs: 10
+  Successful Runs: 8 (80.0%)
+  Failed Runs: 2 (20.0%)
+  Retry Rate: 40.0% (4/10 runs required retries)
+  Average Retries: 0.80 per run
+  Top Failing Pydantic Fields:
+    - answer: 4 errors (66.7% of total errors)
+    - confidence: 2 errors (33.3% of total errors)
+
+==================================================
+```
 
 ---
 
@@ -230,12 +275,13 @@ Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and
 | `from_langgraph(...)` | Scaffold a LangGraph `StateGraph` into a dspyer graph (hybrid native/LLM). |
 | `save_prompts` / `load_prompts` | Serialize tuned instructions + exemplars to JSON and rehydrate in production. |
 | `DirectLM` | Optional `dspy.BaseLM` adapter that bypasses LiteLLM at runtime with pooled `httpx` connections (header-based auth). For latency-critical paths; standard `dspy.LM` is the default. |
+| Batch Validation Reports | Log validation events to JSONL and compile node-by-node retry stats and failing fields. |
 
 ---
 
 ## Project status
 
-Pre-release (`0.2.0`), actively developed. Green CI across Python 3.10–3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 55-case test suite. APIs may shift before `1.0`. Issues and PRs welcome.
+Pre-release (`0.2.0`), actively developed. Green CI across Python 3.10–3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 66-case test suite. APIs may shift before `1.0`. Issues and PRs welcome.
 
 ## License
 

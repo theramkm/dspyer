@@ -64,3 +64,108 @@ def load_logged_dataset(
     except Exception:
         pass
     return examples
+
+
+_validation_lock = threading.Lock()
+
+
+def log_validation_event(
+    validation_log_path: str,
+    node_name: str,
+    success: bool,
+    retries_taken: int,
+    failed_fields: List[str],
+) -> None:
+    """
+    Safely logs a validation event as a JSON line to validation_log_path.
+    """
+    event = {
+        "node_name": node_name,
+        "success": success,
+        "retries_taken": retries_taken,
+        "failed_fields": failed_fields,
+    }
+    try:
+        line = json.dumps(event, ensure_ascii=False)
+    except Exception:
+        return
+
+    with _validation_lock:
+        try:
+            with open(validation_log_path, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+
+
+def generate_validation_report(validation_log_path: str) -> str:
+    """
+    Parses a validation log JSONL file and returns a formatted text report
+    containing retry rates, failure rates, and top failing fields per node.
+    """
+    from collections import Counter
+
+    node_events: Dict[str, List[Dict[str, Any]]] = {}
+    try:
+        with open(validation_log_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                    node_name = event.get("node_name", "unknown")
+                    if node_name not in node_events:
+                        node_events[node_name] = []
+                    node_events[node_name].append(event)
+                except Exception:
+                    continue
+    except Exception:
+        return "Error: Could not read validation log file."
+
+    if not node_events:
+        return "No validation events found in log file."
+
+    lines = []
+    lines.append("=" * 50)
+    lines.append("           dspyer Batch Validation Report")
+    lines.append("=" * 50)
+
+    for node_name, events in sorted(node_events.items()):
+        total_runs = len(events)
+        successful_runs = sum(1 for e in events if e.get("success", False))
+        failed_runs = total_runs - successful_runs
+        runs_with_retries = sum(1 for e in events if e.get("retries_taken", 0) > 0)
+        total_retries = sum(e.get("retries_taken", 0) for e in events)
+
+        success_pct = (successful_runs / total_runs) * 100 if total_runs > 0 else 0.0
+        failed_pct = (failed_runs / total_runs) * 100 if total_runs > 0 else 0.0
+        retry_rate_pct = (runs_with_retries / total_runs) * 100 if total_runs > 0 else 0.0
+        avg_retries = total_retries / total_runs if total_runs > 0 else 0.0
+
+        field_counter: Counter = Counter()
+        for e in events:
+            for field in e.get("failed_fields", []):
+                field_counter[field] += 1
+
+        lines.append(f"\nNode: {node_name}")
+        lines.append("-" * 50)
+        lines.append(f"  Total Runs: {total_runs}")
+        lines.append(f"  Successful Runs: {successful_runs} ({success_pct:.1f}%)")
+        lines.append(f"  Failed Runs: {failed_runs} ({failed_pct:.1f}%)")
+        lines.append(
+            f"  Retry Rate: {retry_rate_pct:.1f}% ({runs_with_retries}/{total_runs} runs required retries)"
+        )
+        lines.append(f"  Average Retries: {avg_retries:.2f} per run")
+
+        if field_counter:
+            lines.append("  Top Failing Pydantic Fields:")
+            total_errors = sum(field_counter.values())
+            for field, count in field_counter.most_common():
+                pct = (count / total_errors) * 100 if total_errors > 0 else 0.0
+                lines.append(f"    - {field}: {count} errors ({pct:.1f}% of total errors)")
+        else:
+            lines.append("  Top Failing Pydantic Fields: None")
+
+    lines.append("\n" + "=" * 50)
+    return "\n".join(lines)
