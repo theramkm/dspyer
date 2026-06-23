@@ -265,6 +265,66 @@ trainset = load_logged_dataset(
 )
 ```
 
+### 6. Escape Hatch Node Decorator (`@dspyer_node`)
+
+Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](file:///Users/ram/play/dspyer/dspy_transpiler/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
+
+```python
+from dspy_transpiler import dspyer_node
+
+class ExtractorInput(BaseModel):
+    query: str
+
+class ExtractorOutput(BaseModel):
+    entities: list[str]
+
+@dspyer_node(
+    input_model=ExtractorInput,
+    output_model=ExtractorOutput,
+    instructions="Extract named entities from the user query."
+)
+def extract_entities_node(state):
+    # This node is explicitly registered with its typing contract
+    # Bypasses AST static analysis during LangGraph conversion
+    pass
+```
+
+### 7. Async & Streaming Pipelines
+
+For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) or stream intermediate events via [astream](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py):
+
+```python
+program = AgentTranspiler.compile(graph, output_model=ExtractorOutput)
+
+# 1. Async forward call
+result = await program.aforward(query="Alice and Bob went to Paris")
+print(result.entities)
+
+# 2. Async event streaming
+async for event in program.astream(query="Alice and Bob went to Paris"):
+    print(f"Event: {event['event']} | Node: {event.get('node')}")
+```
+
+### 8. Pluggable Storage Adapters
+
+Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py):
+
+```python
+from dspy_transpiler.utils import BaseStorageAdapter, set_storage_adapter
+
+class CustomDatabaseAdapter(BaseStorageAdapter):
+    def append_line(self, target: str, line: str) -> None:
+        # Custom synchronous DB write
+        db.insert(target, line)
+
+    async def append_line_async(self, target: str, line: str) -> None:
+        # Custom non-blocking async DB write
+        await db.async_insert(target, line)
+
+# Register custom adapter globally
+set_storage_adapter(CustomDatabaseAdapter())
+```
+
 ---
 
 ## Additional References
@@ -274,12 +334,16 @@ trainset = load_logged_dataset(
 | `use_cot=True` | Injects chain-of-thought rationales dynamically without polluting output schemas. |
 | `ImmutableState.merge()` | Standard merge policies (`last_write_wins`, `combine_lists`, `raise`) to reconcile parallel branches. |
 | `StatefulNode` parameters | Per-node `max_retries` and custom `refine_instructions` configurations. |
+| `@dspyer_node` | Bypasses graph AST parsing with explicit input/output schema metadata declarations. |
+| `aforward` / `astream` | Non-blocking async execution and fine-grained graph step streaming. |
+| Copy-on-Write (COW) | High-speed dictionary state patching that preserves untouched branches. |
+| Pluggable Storage | Thread-safe database and custom file adapters for production telemetry log sinks. |
 
 ---
 
 ## Project Status
 
-Stable release (`0.3.1`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
+Stable release (`0.3.2`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
 
 ## License
 

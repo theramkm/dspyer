@@ -6,6 +6,8 @@ This page contains the auto-generated API reference for `dspyer` classes, decora
 
 ::: dspy_transpiler.self_correcting
 
+::: dspy_transpiler.dspyer_node
+
 ---
 
 ## Compiler & Program Execution
@@ -41,6 +43,14 @@ This page contains the auto-generated API reference for `dspyer` classes, decora
 ::: dspy_transpiler.utils.generate_validation_report
 
 ::: dspy_transpiler.utils.load_logged_dataset
+
+::: dspy_transpiler.utils.BaseStorageAdapter
+
+::: dspy_transpiler.utils.FileStorageAdapter
+
+::: dspy_transpiler.utils.get_storage_adapter
+
+::: dspy_transpiler.utils.set_storage_adapter
 
 ---
 

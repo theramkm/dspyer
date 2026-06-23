@@ -62,6 +62,4 @@ plugins:
 
 nav:
   - Introduction: index.md
-  - Agents: agents.md
-  - Architecture: arch-1.md
   - API Reference: api.md

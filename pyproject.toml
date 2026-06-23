@@ -1,6 +1,6 @@
 [project]
 name = "dspyer"
-version = "0.3.1"
+version = "0.3.2"
 description = "A transpiler from stateful imperative workflows to declarative DSPy programs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -27,8 +27,10 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/theramkm/dspyer"
+Documentation = "https://theramkm.github.io/dspyer/"
 Repository = "https://github.com/theramkm/dspyer"
 Issues = "https://github.com/theramkm/dspyer/issues"
+Changelog = "https://github.com/theramkm/dspyer/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 otel = [
