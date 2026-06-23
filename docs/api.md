@@ -4,58 +4,58 @@ This page contains the auto-generated API reference for `dspyer` classes, decora
 
 ## Decorators
 
-::: dspy_transpiler.self_correcting
+::: dspyer.self_correcting
 
-::: dspy_transpiler.dspyer_node
+::: dspyer.dspyer_node
 
 ---
 
 ## Compiler & Program Execution
 
-::: dspy_transpiler.AgentTranspiler
+::: dspyer.AgentTranspiler
 
-::: dspy_transpiler.compiler.TranspiledAgentProgram
+::: dspyer.compiler.TranspiledAgentProgram
 
 ---
 
 ## Graph Specification
 
-::: dspy_transpiler.Graph
+::: dspyer.graph.Graph
 
-::: dspy_transpiler.StatefulNode
+::: dspyer.graph.StatefulNode
 
 ---
 
 ## Conversions & Scaffolding
 
-::: dspy_transpiler.from_langgraph
+::: dspyer.from_langgraph
 
 ---
 
 ## State Management
 
-::: dspy_transpiler.ImmutableState
+::: dspyer.state.ImmutableState
 
 ---
 
 ## Utilities & Observability
 
-::: dspy_transpiler.utils.generate_validation_report
+::: dspyer.utils.generate_validation_report
 
-::: dspy_transpiler.utils.load_logged_dataset
+::: dspyer.utils.load_logged_dataset
 
-::: dspy_transpiler.utils.BaseStorageAdapter
+::: dspyer.utils.BaseStorageAdapter
 
-::: dspy_transpiler.utils.FileStorageAdapter
+::: dspyer.utils.FileStorageAdapter
 
-::: dspy_transpiler.utils.get_storage_adapter
+::: dspyer.utils.get_storage_adapter
 
-::: dspy_transpiler.utils.set_storage_adapter
+::: dspyer.utils.set_storage_adapter
 
 ---
 
 ## Direct Connection Clients (DirectLM)
 
-::: dspy_transpiler.DirectClient
+::: dspyer.compiler.DirectClient
 
-::: dspy_transpiler.DirectLM
+::: dspyer.compiler.DirectLM

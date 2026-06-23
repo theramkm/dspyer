@@ -6,12 +6,12 @@ For concurrent environments and interactive user interfaces (like chat applicati
 
 ## 1. Async Program Execution (`aforward`)
 
-To prevent blocking the async event loop during LLM invocation, compile your graph and execute it asynchronously via [aforward](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py). 
+To prevent blocking the async event loop during LLM invocation, compile your graph and execute it asynchronously via [aforward](../dspyer/compiler.py). 
 
 `aforward` runs model predictions inside thread pools using standard async scheduling wrappers. It is fully compatible with concurrent web frameworks like FastAPI:
 
 ```python
-from dspy_transpiler import AgentTranspiler
+from dspyer import AgentTranspiler
 
 # Compile the graph
 program = AgentTranspiler.compile(graph, output_model=TargetSchema)
@@ -37,7 +37,7 @@ print(result.confidence)    # Verified Autocomplete
 
 ## 2. Event Streaming (`astream`)
 
-If you want to stream intermediate executions to the frontend in real-time, call the [astream](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) generator. 
+If you want to stream intermediate executions to the frontend in real-time, call the [astream](../dspyer/compiler.py) generator. 
 
 `astream` is an async generator that yields structured dictionaries tracking the step-by-step progress of your state machine:
 

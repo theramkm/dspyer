@@ -4,8 +4,8 @@ from typing import Any, Dict
 import pytest
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler, GraphExecutionError
-from dspy_transpiler.graph import Graph, StatefulNode
+from dspyer.compiler import AgentTranspiler, GraphExecutionError
+from dspyer.graph import Graph, StatefulNode
 
 
 # Schemas for testing
@@ -236,7 +236,7 @@ def test_compiler_forward_loop_limit(monkeypatch):
 
 
 def test_json_repair_clean_markdown():
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     raw = 'Here is the result:\n```json\n{"user_name": "Alice", "age": 30}\n```\nHope it helps!'
     parsed = repair_and_parse_json(raw)
@@ -244,7 +244,7 @@ def test_json_repair_clean_markdown():
 
 
 def test_json_repair_truncated_bracket():
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     # Truncated dictionary
     raw = '{"name": "Alice", "hobbies": ["reading", "coding"'
@@ -253,7 +253,7 @@ def test_json_repair_truncated_bracket():
 
 
 def test_json_repair_truncated_quote():
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     # Cut off in the middle of a string value
     raw = '{"name": "Alice", "status": "workin'
@@ -262,7 +262,7 @@ def test_json_repair_truncated_quote():
 
 
 def test_json_repair_trailing_comma():
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     # Cut off after a value and a comma
     raw = '{"id": 101, "tags": ["a", "b"], '
@@ -271,7 +271,7 @@ def test_json_repair_trailing_comma():
 
 
 def test_direct_client_payload_formatting():
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     # 1. Ollama formatting
     client_ollama = DirectClient(provider="ollama", model="llama3")
@@ -311,7 +311,7 @@ def test_direct_client_payload_formatting():
 def test_direct_client_mock_execution(monkeypatch):
     import urllib.request
 
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     client = DirectClient(provider="openai", model="gpt-5.5", api_key="sk-mock")
 
@@ -336,7 +336,7 @@ def test_direct_client_mock_execution(monkeypatch):
         def __exit__(self, exc_type, exc_val, exc_tb):
             pass
 
-    import dspy_transpiler.compiler as compiler
+    import dspyer.compiler as compiler
 
     if compiler.HAS_HTTPX:
         import httpx
@@ -363,7 +363,7 @@ def test_direct_client_mock_execution(monkeypatch):
 
 
 def test_direct_lm_adapter_execution(monkeypatch):
-    from dspy_transpiler.compiler import DirectLM, MockCompletionResult
+    from dspyer.compiler import DirectLM, MockCompletionResult
 
     # Instantiate DirectLM
     lm = DirectLM(model="openai/gpt-4o-mini", api_key="sk-test")
@@ -449,7 +449,7 @@ def test_compiler_prompt_optimization_compatibility(monkeypatch):
     import dspy
     from dspy.teleprompt import BootstrapFewShot
 
-    from dspy_transpiler.compiler import AgentTranspiler, DirectLM
+    from dspyer.compiler import AgentTranspiler, DirectLM
 
     node_a = StatefulNode(
         name="NodeA",
@@ -539,7 +539,7 @@ def test_direct_client_pooling_lifecycle():
 
     import httpx
 
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     client = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")
 
@@ -573,7 +573,7 @@ def test_direct_client_pooling_lifecycle():
 
 
 def test_json_repair_fallback_and_direct():
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     # Test direct parsing of valid json
     assert repair_and_parse_json('{"foo": "bar"}') == {"foo": "bar"}
@@ -594,8 +594,8 @@ def test_transpiled_program_prediction_return(monkeypatch):
     import dspy
     from pydantic import BaseModel
 
-    from dspy_transpiler.compiler import AgentTranspiler
-    from dspy_transpiler.graph import Graph, StatefulNode
+    from dspyer.compiler import AgentTranspiler
+    from dspyer.graph import Graph, StatefulNode
 
     class CompilerTestInput(BaseModel):
         input_text: str
@@ -626,7 +626,7 @@ def test_transpiled_program_prediction_return(monkeypatch):
 def test_direct_client_transient_retry_success(monkeypatch):
     import httpx
 
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     client = DirectClient(
         provider="openai",
@@ -671,7 +671,7 @@ def test_direct_client_retry_exhaustion(monkeypatch):
     import httpx
     import pytest
 
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     client = DirectClient(
         provider="openai",
@@ -706,8 +706,8 @@ def test_telemetry_span_otel_integration(monkeypatch):
     sys.modules["opentelemetry"] = MagicMock()
     sys.modules["opentelemetry.trace"] = mock_trace
 
-    import dspy_transpiler.telemetry as tel
-    from dspy_transpiler import telemetry
+    import dspyer.telemetry as tel
+    from dspyer import telemetry
 
     monkeypatch.setattr(tel, "HAS_OTEL", True)
 
@@ -761,8 +761,8 @@ def test_telemetry_validation_error_recording(monkeypatch):
     sys.modules["opentelemetry"] = MagicMock()
     sys.modules["opentelemetry.trace"] = mock_trace
 
-    import dspy_transpiler.telemetry as tel
-    from dspy_transpiler import telemetry
+    import dspyer.telemetry as tel
+    from dspyer import telemetry
 
     monkeypatch.setattr(tel, "HAS_OTEL", True)
 
@@ -821,8 +821,8 @@ def test_telemetry_validation_error_recording(monkeypatch):
 def test_graph_compilation_collision():
     from pydantic import BaseModel, Field
 
-    from dspy_transpiler.compiler import AgentTranspiler
-    from dspy_transpiler.graph import Graph, StatefulNode
+    from dspyer.compiler import AgentTranspiler
+    from dspyer.graph import Graph, StatefulNode
 
     class CollidingInput(BaseModel):
         max_retries: int = Field(description="Reserved collision name")
@@ -850,7 +850,7 @@ def test_graph_compilation_collision():
 
 @pytest.mark.asyncio
 async def test_direct_client_async_context_manager(monkeypatch):
-    from dspy_transpiler.compiler import DirectClient
+    from dspyer.compiler import DirectClient
 
     client = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")
 
@@ -909,7 +909,7 @@ def test_graph_compilation_unreachable_warning(caplog):
 
 @pytest.mark.asyncio
 async def test_direct_client_token_usage_parsing(monkeypatch):
-    from dspy_transpiler.compiler import DirectClient, DirectLM
+    from dspyer.compiler import DirectClient, DirectLM
 
     # Test _extract_usage on OpenAI
     client_openai = DirectClient(provider="openai", model="gpt-4", api_key="sk-test")

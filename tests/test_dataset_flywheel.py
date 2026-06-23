@@ -4,10 +4,10 @@ import os
 import dspy
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.decorator import self_correcting
-from dspy_transpiler.graph import Graph, StatefulNode
-from dspy_transpiler.utils import load_logged_dataset
+from dspyer.compiler import AgentTranspiler
+from dspyer.decorator import self_correcting
+from dspyer.graph import Graph, StatefulNode
+from dspyer.utils import load_logged_dataset
 
 
 class SimpleOutput(BaseModel):

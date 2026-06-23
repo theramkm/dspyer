@@ -1,6 +1,6 @@
 import pytest
 
-from dspy_transpiler.state import ImmutableState
+from dspyer.state import ImmutableState
 
 
 def test_state_initialization():

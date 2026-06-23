@@ -13,7 +13,7 @@ The `@self_correcting` decorator wraps standard `dspy.Module` classes, predictor
 You can decorate a simple Python function to compile a dynamic signature. The function signature defines inputs, return annotations define the output schema, and the docstring serves as instructions:
 
 ```python
-from dspy_transpiler import self_correcting
+from dspyer import self_correcting
 from pydantic import BaseModel
 
 class CodeOutput(BaseModel):
@@ -51,10 +51,11 @@ class PythonCoder(dspy.Module):
 
 When compiling an entire graph structure (e.g. from an existing LangGraph workflow), `dspyer` statically analyzes function source codes to extract input accesses and return variables. 
 
-For complex functions with dynamic logic or nested mappings, this AST parser can become brittle. The [@dspyer_node](file:///Users/ram/play/dspyer/dspy_transpiler/decorator.py) decorator acts as a developer escape hatch to explicitly define node interfaces and bypass AST analysis completely:
+For complex functions with dynamic logic or nested mappings, this AST parser can become brittle. The [@dspyer_node](../dspyer/decorator.py) decorator acts as a developer escape hatch to explicitly define node interfaces and bypass AST analysis completely:
 
 ```python
-from dspy_transpiler import dspyer_node
+from dspyer import dspyer_node
+from pydantic import BaseModel
 
 class SolverInput(BaseModel):
     problem: str
@@ -75,3 +76,17 @@ def solver_node_callable(state):
     # Custom python logic ...
     return {"solution": "Parsed result", "confidence": 0.9}
 ```
+
+---
+
+## 3. Decorator Comparison & Guidance
+
+When building LLM programs, choose the decorator that matches your specific architectural need:
+
+| Decorator | Primary Purpose | When to Use | Bypasses AST Analysis? |
+| :--- | :--- | :--- | :--- |
+| `@self_correcting` | **Validation & Correction Loops** | Wrap standalone functions or custom modules to automatically retry queries (up to `max_retries`) if output schemas fail validation. | No (relies on signature or module structure) |
+| `@dspyer_node` | **AST Escape Hatch** | Wrap node callables within compiled graphs (like LangGraph topologies) when their internal Python logic is too complex for static AST parsing. | **Yes** (fully skips AST static parsing) |
+
+* **Reach for `@self_correcting`** when your main goal is to enforce Pydantic contracts and add self-correcting retry behavior to a specific component or signature.
+* **Reach for `@dspyer_node`** when compiling a node inside a larger topology that performs dynamic dictionary lookups, external client calls, or branching logic that causes the AST compiler to fail or misidentify inputs/outputs.

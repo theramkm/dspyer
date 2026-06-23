@@ -4,9 +4,9 @@ import dspy
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.decorator import parse_and_validate, self_correcting
-from dspy_transpiler.graph import Graph, StatefulNode
+from dspyer.compiler import AgentTranspiler
+from dspyer.decorator import parse_and_validate, self_correcting
+from dspyer.graph import Graph, StatefulNode
 
 
 class OutputSchema(BaseModel):

@@ -2,8 +2,9 @@ import dspy
 import pytest
 from pydantic import BaseModel, field_validator
 
-from dspy_transpiler import AgentTranspiler, Graph, StatefulNode, dspyer_node
-from dspy_transpiler.utils import BaseStorageAdapter, get_storage_adapter, set_storage_adapter
+from dspyer import AgentTranspiler, dspyer_node
+from dspyer.graph import Graph, StatefulNode
+from dspyer.utils import BaseStorageAdapter, get_storage_adapter, set_storage_adapter
 
 
 class DummyInput(BaseModel):
@@ -39,7 +40,7 @@ async def test_pluggable_storage_adapter():
     original_adapter = get_storage_adapter()
     try:
         set_storage_adapter(mock_adapter)
-        from dspy_transpiler.utils import log_self_correction_example_async
+        from dspyer.utils import log_self_correction_example_async
 
         await log_self_correction_example_async(
             "dummy_path.jsonl",
@@ -79,7 +80,7 @@ async def test_dspyer_node_decorator():
     builder.add_edge(START, "Processor")
     builder.add_edge("Processor", END)
 
-    from dspy_transpiler import from_langgraph
+    from dspyer import from_langgraph
 
     dspyer_graph = from_langgraph(builder)
 

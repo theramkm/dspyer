@@ -5,7 +5,7 @@ import sys
 # Allow direct script execution from subdirectories
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from dspy_transpiler.compiler import DirectClient
+from dspyer.compiler import DirectClient
 
 
 def main():

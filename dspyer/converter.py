@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional, Set, Tuple
 
 from pydantic import BaseModel, create_model
 
-from dspy_transpiler.graph import Graph, StatefulNode
+from dspyer.graph import Graph, StatefulNode
 
 
 class DefaultState(BaseModel):

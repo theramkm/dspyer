@@ -17,8 +17,8 @@ import os
 import dspy
 from pydantic import BaseModel, Field, field_validator
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.graph import Graph, StatefulNode
+from dspyer.compiler import AgentTranspiler
+from dspyer.graph import Graph, StatefulNode
 
 
 # 1. The contract you want the LLM to honor.

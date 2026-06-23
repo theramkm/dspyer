@@ -4,10 +4,10 @@ import dspy
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.decorator import self_correcting
-from dspy_transpiler.graph import Graph, StatefulNode
-from dspy_transpiler.utils import generate_validation_report
+from dspyer.compiler import AgentTranspiler
+from dspyer.decorator import self_correcting
+from dspyer.graph import Graph, StatefulNode
+from dspyer.utils import generate_validation_report
 
 
 class SimpleOutput(BaseModel):

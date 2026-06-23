@@ -30,10 +30,10 @@ import dspy
 from pydantic import BaseModel, Field, ValidationError
 from pydantic_core import PydanticUndefined
 
-from dspy_transpiler.graph import Graph, StatefulNode
-from dspy_transpiler.signatures import DynamicSignatureBuilder
-from dspy_transpiler.state import ImmutableState
-from dspy_transpiler.telemetry import trace_span
+from dspyer.graph import Graph, StatefulNode
+from dspyer.signatures import DynamicSignatureBuilder
+from dspyer.state import ImmutableState
+from dspyer.telemetry import trace_span
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -878,7 +878,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
                         )
                         node_redact_hook = getattr(node, "redact_hook", None) or self.redact_hook
                         if node_log_path is not None:
-                            from dspy_transpiler.utils import log_self_correction_example
+                            from dspyer.utils import log_self_correction_example
 
                             log_self_correction_example(
                                 node_log_path,
@@ -888,7 +888,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
                             )
 
                     if node_validation_log_path is not None:
-                        from dspy_transpiler.utils import log_validation_event
+                        from dspyer.utils import log_validation_event
 
                         log_validation_event(
                             node_validation_log_path,
@@ -913,7 +913,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
 
                     if attempt > effective_max_retries:
                         if node_validation_log_path is not None:
-                            from dspy_transpiler.utils import log_validation_event
+                            from dspyer.utils import log_validation_event
 
                             log_validation_event(
                                 node_validation_log_path,
@@ -1222,7 +1222,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
                         )
                         node_redact_hook = getattr(node, "redact_hook", None) or self.redact_hook
                         if node_log_path is not None:
-                            from dspy_transpiler.utils import log_self_correction_example_async
+                            from dspyer.utils import log_self_correction_example_async
 
                             await log_self_correction_example_async(
                                 node_log_path,
@@ -1232,7 +1232,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
                             )
 
                     if node_validation_log_path is not None:
-                        from dspy_transpiler.utils import log_validation_event_async
+                        from dspyer.utils import log_validation_event_async
 
                         await log_validation_event_async(
                             node_validation_log_path,
@@ -1269,7 +1269,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
 
                     if attempt > effective_max_retries:
                         if node_validation_log_path is not None:
-                            from dspy_transpiler.utils import log_validation_event_async
+                            from dspyer.utils import log_validation_event_async
 
                             await log_validation_event_async(
                                 node_validation_log_path,

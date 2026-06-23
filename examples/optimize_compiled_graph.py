@@ -10,7 +10,7 @@ import dspy
 from dspy.teleprompt import BootstrapFewShot
 from langgraph.graph import END, START, StateGraph
 
-from dspy_transpiler import AgentTranspiler, from_langgraph
+from dspyer import AgentTranspiler, from_langgraph
 
 
 # 1. Define State Dict for LangGraph

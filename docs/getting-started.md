@@ -28,7 +28,7 @@ uv add dspyer --optional otel --optional langgraph
 
 Unlike traditional DSPy programs that require you to explicitly declare signatures and predictors upfront, `dspyer` lets you define your workflow as a state machine where each step (or node) is associated with an input schema, an output schema, and instructions.
 
-`dspyer` compiles this topology under the hood into a single declarative [TranspiledAgentProgram](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) subclass. Every dynamic predictor is registered as a model parameter, allowing DSPy teleprompters (optimizers) to tune your prompts automatically.
+`dspyer` compiles this topology under the hood into a single declarative [TranspiledAgentProgram](../dspyer/compiler.py) subclass. Every dynamic predictor is registered as a model parameter, allowing DSPy teleprompters (optimizers) to tune your prompts automatically.
 
 ---
 
@@ -60,10 +60,10 @@ class RAGResponse(BaseModel):
 
 ### 2. Configure the Graph and Compile
 
-Declare a [StatefulNode](file:///Users/ram/play/dspyer/dspy_transpiler/graph.py) representing the synthesis step, set up the [Graph](file:///Users/ram/play/dspyer/dspy_transpiler/graph.py), and compile it:
+Declare a [StatefulNode](../dspyer/graph.py) representing the synthesis step, set up the [Graph](../dspyer/graph.py), and compile it:
 
 ```python
-from dspy_transpiler import Graph, StatefulNode, AgentTranspiler
+from dspyer import Graph, StatefulNode, AgentTranspiler
 
 # Initialize a node with instructions and a validation contract
 node = StatefulNode(
@@ -89,7 +89,7 @@ To test this program offline, configure DSPy with a MockLM that simulates a vali
 
 ```python
 import dspy
-from dspy_transpiler.compiler import MockCompletionResult
+from dspyer.compiler import MockCompletionResult
 
 class CitationMockLM(dspy.LM):
     def __init__(self):

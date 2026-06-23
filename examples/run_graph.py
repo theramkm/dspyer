@@ -8,8 +8,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import dspy
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.graph import Graph, StatefulNode
+from dspyer.compiler import AgentTranspiler
+from dspyer.graph import Graph, StatefulNode
 
 
 # Define Step Schemas

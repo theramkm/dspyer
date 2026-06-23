@@ -3,7 +3,7 @@ from typing import Type
 
 import dspy
 
-from dspy_transpiler.graph import StatefulNode
+from dspyer.graph import StatefulNode
 
 
 class DynamicSignatureBuilder:

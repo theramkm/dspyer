@@ -1,7 +1,7 @@
 [project]
 name = "dspyer"
-version = "0.3.3"
-description = "A transpiler from stateful imperative workflows to declarative DSPy programs"
+version = "0.3.4"
+description = "Reliable, optimizable LLM steps with zero DSPy boilerplate"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -52,9 +52,9 @@ dev = [
     "langgraph>=1.0,<2.0",
 ]
 docs = [
-    "mkdocs>=1.5.0",
-    "mkdocs-material>=9.5.0",
-    "mkdocstrings[python]>=0.24.0",
+    "mkdocs>=1.5.0,<2.0.0",
+    "mkdocs-material>=9.5.0,<10.0.0",
+    "mkdocstrings[python]>=0.24.0,<1.0.0",
 ]
 
 [tool.ruff]
@@ -72,11 +72,11 @@ ignore_missing_imports = true
 check_untyped_defs = true
 
 [tool.pytest.ini_options]
-addopts = "--cov=dspy_transpiler --cov-report=term-missing"
+addopts = "--cov=dspyer --cov-report=term-missing"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["dspy_transpiler"]
+packages = ["dspyer"]

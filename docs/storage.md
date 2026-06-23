@@ -6,14 +6,14 @@
 
 ## 1. Pluggable Storage Adapters
 
-To prevent performance blockages under concurrent LLM calls, logging writes are delegated to a storage adapter interface. By default, `dspyer` uses [FileStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py) which appends lines to local files asynchronously in thread pools using `asyncio.to_thread`.
+To prevent performance blockages under concurrent LLM calls, logging writes are delegated to a storage adapter interface. By default, `dspyer` uses [FileStorageAdapter](../dspyer/utils.py) which appends lines to local files asynchronously in thread pools using `asyncio.to_thread`.
 
 ### Creating a Custom Storage Adapter
 
-You can redirect logs to external databases (e.g. SQLite, PostgreSQL, or vector databases) by subclassing the [BaseStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py) and registering it:
+You can redirect logs to external databases (e.g. SQLite, PostgreSQL, or vector databases) by subclassing the [BaseStorageAdapter](../dspyer/utils.py) and registering it:
 
 ```python
-from dspy_transpiler.utils import BaseStorageAdapter, set_storage_adapter
+from dspyer.utils import BaseStorageAdapter, set_storage_adapter
 
 class MongoDBStorageAdapter(BaseStorageAdapter):
     def append_line(self, target: str, line: str) -> None:
@@ -40,7 +40,7 @@ program = AgentTranspiler.compile(graph, validation_log_path="logs/validation.js
 At any point, compile these raw JSON lines into a human-readable performance report:
 
 ```python
-from dspy_transpiler.utils import generate_validation_report
+from dspyer.utils import generate_validation_report
 
 report = generate_validation_report("logs/validation.jsonl")
 print(report)
@@ -67,7 +67,7 @@ program = AgentTranspiler.compile(graph, dataset_log_path="logs/flywheel.jsonl")
 Load the logged examples into a standard `dspy.Example` list, ready for any DSPy teleprompter:
 
 ```python
-from dspy_transpiler.utils import load_logged_dataset
+from dspyer.utils import load_logged_dataset
 
 trainset = load_logged_dataset(
     dataset_log_path="logs/flywheel.jsonl",

@@ -10,8 +10,8 @@ import dspy
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field, field_validator
 
-from dspy_transpiler import AgentTranspiler, from_langgraph
-from dspy_transpiler.graph import StatefulNode
+from dspyer import AgentTranspiler, from_langgraph
+from dspyer.graph import StatefulNode
 
 
 # 1. Define State for LangGraph

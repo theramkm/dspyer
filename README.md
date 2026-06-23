@@ -68,8 +68,8 @@ This runs completely offline using a mock model backend. The node contract requi
 ```python
 import dspy
 from pydantic import BaseModel, Field, field_validator
-from dspy_transpiler.graph import Graph, StatefulNode
-from dspy_transpiler.compiler import AgentTranspiler, MockCompletionResult
+from dspyer.graph import Graph, StatefulNode
+from dspyer.compiler import AgentTranspiler, MockCompletionResult
 
 # 1. Describe the schema contract you want the LLM to honor
 class Query(BaseModel):
@@ -136,7 +136,7 @@ print("Self-correction loops:", r["_metadata"]["refinement_steps_taken"])  # 1
 Wrap any plain typed Python function. The parameters map to inputs, the docstring acts as instructions, and the return annotation defines the schema:
 
 ```python
-from dspy_transpiler import self_correcting
+from dspyer import self_correcting
 from pydantic import BaseModel
 
 class SolverOutput(BaseModel):
@@ -201,7 +201,7 @@ def run_agent_node(state):
 Alternatively, scaffold an entire LangGraph `StateGraph` topology into a `dspyer.Graph` automatically. Non-LLM nodes are preserved as native Python passthroughs:
 
 ```python
-from dspy_transpiler import from_langgraph
+from dspyer import from_langgraph
 
 node_mappings = {
     "Clean": StatefulNode("Clean", CleanInput, CleanOutput, instructions="Normalize the query"),
@@ -221,7 +221,7 @@ program = AgentTranspiler.compile(graph, validation_log_path="logs/validation.js
 Generate a summary report detailing per-node error rates and failing Pydantic fields:
 
 ```python
-from dspy_transpiler.utils import generate_validation_report
+from dspyer.utils import generate_validation_report
 
 print(generate_validation_report("logs/validation.jsonl"))
 ```
@@ -256,7 +256,7 @@ program = AgentTranspiler.compile(graph, dataset_log_path="logs/flywheel.jsonl")
 Then, load the logged executions using `load_logged_dataset` to dynamically generate a clean training dataset of `dspy.Example` objects:
 
 ```python
-from dspy_transpiler.utils import load_logged_dataset
+from dspyer.utils import load_logged_dataset
 
 # We must specify which keys act as model inputs
 trainset = load_logged_dataset(
@@ -267,10 +267,10 @@ trainset = load_logged_dataset(
 
 ### 6. Escape Hatch Node Decorator (`@dspyer_node`)
 
-Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](file:///Users/ram/play/dspyer/dspy_transpiler/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
+Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](dspyer/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
 
 ```python
-from dspy_transpiler import dspyer_node
+from dspyer import dspyer_node
 
 class ExtractorInput(BaseModel):
     query: str
@@ -291,7 +291,7 @@ def extract_entities_node(state):
 
 ### 7. Async & Streaming Pipelines
 
-For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) or stream intermediate events via [astream](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py):
+For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](dspyer/compiler.py) or stream intermediate events via [astream](dspyer/compiler.py):
 
 ```python
 program = AgentTranspiler.compile(graph, output_model=ExtractorOutput)
@@ -307,10 +307,10 @@ async for event in program.astream(query="Alice and Bob went to Paris"):
 
 ### 8. Pluggable Storage Adapters
 
-Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](file:///Users/ram/play/dspyer/dspy_transpiler/utils.py):
+Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](dspyer/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](dspyer/utils.py):
 
 ```python
-from dspy_transpiler.utils import BaseStorageAdapter, set_storage_adapter
+from dspyer.utils import BaseStorageAdapter, set_storage_adapter
 
 class CustomDatabaseAdapter(BaseStorageAdapter):
     def append_line(self, target: str, line: str) -> None:

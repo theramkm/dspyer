@@ -10,9 +10,9 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import dspy
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.graph import Graph, StatefulNode
-from dspy_transpiler.state import ImmutableState
+from dspyer.compiler import AgentTranspiler
+from dspyer.graph import Graph, StatefulNode
+from dspyer.state import ImmutableState
 
 # =====================================================================
 # 1. Define Step Schemas
@@ -67,7 +67,7 @@ class LoopAndParallelMockLM(dspy.LM):
     def forward(
         self, prompt: str | None = None, messages: List[Dict[str, Any]] | None = None, **kwargs
     ):
-        from dspy_transpiler.compiler import MockCompletionResult
+        from dspyer.compiler import MockCompletionResult
 
         prompt_str = prompt or ""
         if messages:

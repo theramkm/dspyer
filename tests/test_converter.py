@@ -8,9 +8,9 @@ import dspy
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
-from dspy_transpiler.compiler import AgentTranspiler
-from dspy_transpiler.converter import from_langgraph
-from dspy_transpiler.graph import StatefulNode
+from dspyer.compiler import AgentTranspiler
+from dspyer.converter import from_langgraph
+from dspyer.graph import StatefulNode
 
 
 # Define state schema for testing

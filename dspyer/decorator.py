@@ -64,7 +64,7 @@ def parse_and_validate(
                 pass
         if isinstance(val, str):
             try:
-                from dspy_transpiler.compiler import repair_and_parse_json
+                from dspyer.compiler import repair_and_parse_json
 
                 parsed_json = repair_and_parse_json(val)
                 parsed = schema.model_validate(parsed_json)
@@ -87,7 +87,7 @@ def parse_and_validate(
 
     # Reconstruct dictionary from raw fields, attempting to repair strings containing JSON
     cleaned_data = {}
-    from dspy_transpiler.compiler import repair_and_parse_json
+    from dspyer.compiler import repair_and_parse_json
 
     for k, v in raw_data.items():
         if isinstance(v, str) and (v.strip().startswith("{") or v.strip().startswith("[")):
@@ -190,7 +190,7 @@ def wrap_predictor(
             try:
                 parsed_model, raw_data = parse_and_validate(prediction, target_schema, validator)
                 if attempt > 0 and dataset_log_path is not None:
-                    from dspy_transpiler.utils import log_self_correction_example
+                    from dspyer.utils import log_self_correction_example
 
                     log_self_correction_example(
                         dataset_log_path,
@@ -199,7 +199,7 @@ def wrap_predictor(
                         redact_hook,
                     )
                 if validation_log_path is not None:
-                    from dspy_transpiler.utils import log_validation_event
+                    from dspyer.utils import log_validation_event
 
                     log_validation_event(
                         validation_log_path,
@@ -226,7 +226,7 @@ def wrap_predictor(
 
                 # Record error trace if OpenTelemetry span is active
                 try:
-                    from dspy_transpiler.telemetry import get_current_span
+                    from dspyer.telemetry import get_current_span
 
                     span = get_current_span()
                     if span is not None and hasattr(span, "record_validation_error"):
@@ -236,7 +236,7 @@ def wrap_predictor(
 
                 if attempt >= max_retries:
                     if validation_log_path is not None:
-                        from dspy_transpiler.utils import log_validation_event
+                        from dspyer.utils import log_validation_event
 
                         log_validation_event(
                             validation_log_path,
@@ -360,7 +360,7 @@ def self_correcting(
                                 prediction, schema, validator
                             )
                             if attempt > 0 and dataset_log_path is not None:
-                                from dspy_transpiler.utils import log_self_correction_example
+                                from dspyer.utils import log_self_correction_example
 
                                 log_self_correction_example(
                                     dataset_log_path,
@@ -369,7 +369,7 @@ def self_correcting(
                                     redact_hook,
                                 )
                             if validation_log_path is not None:
-                                from dspy_transpiler.utils import log_validation_event
+                                from dspyer.utils import log_validation_event
 
                                 log_validation_event(
                                     validation_log_path,
@@ -399,7 +399,7 @@ def self_correcting(
                             feedback_str = "\n".join(feedback_lines)
 
                             try:
-                                from dspy_transpiler.telemetry import get_current_span
+                                from dspyer.telemetry import get_current_span
 
                                 span = get_current_span()
                                 if span is not None and hasattr(span, "record_validation_error"):
@@ -409,7 +409,7 @@ def self_correcting(
 
                             if attempt >= max_retries:
                                 if validation_log_path is not None:
-                                    from dspy_transpiler.utils import log_validation_event
+                                    from dspyer.utils import log_validation_event
 
                                     log_validation_event(
                                         validation_log_path,
