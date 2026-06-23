@@ -1,29 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 840 500" width="100%" height="100%" style="background-color: #080B11; font-family: 'Outfit', sans-serif;">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="100%" height="100%" style="background-color: #080B11; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
   <defs>
     <!-- Fonts -->
     <style type="text/css">
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;family=Outfit:wght@400;500;700&amp;display=swap');
       
-      .title-text { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 26px; fill: url(#grad-header); }
-      .subtitle-text { font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 14px; fill: #94A3B8; }
-      .box-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 15px; fill: #F8FAFC; }
-      .box-subtitle { font-family: 'Outfit', sans-serif; font-weight: 500; font-size: 11px; fill: #64748B; letter-spacing: 0.05em; }
-      .body-text { font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 12px; fill: #CBD5E1; }
-      .code-text { font-family: 'JetBrains Mono', monospace; font-size: 11px; fill: #A7F3D0; }
+      .title-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 26px; fill: url(#grad-header); }
+      .subtitle-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 14px; fill: #94A3B8; }
+      .box-title { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 15px; fill: #F8FAFC; }
+      .box-subtitle { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 500; font-size: 11px; fill: #64748B; letter-spacing: 0.05em; }
+      .body-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 12px; fill: #CBD5E1; }
+      .body-subtext { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 10px; fill: #94A3B8; }
+      .code-text { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #A7F3D0; }
       
       /* Glow filters */
       .glow-purple { filter: drop-shadow(0px 0px 8px rgba(139, 92, 246, 0.4)); }
       .glow-emerald { filter: drop-shadow(0px 0px 8px rgba(16, 185, 129, 0.4)); }
       .glow-blue { filter: drop-shadow(0px 0px 8px rgba(59, 130, 246, 0.4)); }
       
-      /* Animation */
-      @keyframes pulse {
-        0% { opacity: 0.3; }
-        50% { opacity: 0.8; }
-        100% { opacity: 0.3; }
-      }
-      .pulse-element { animation: pulse 3s infinite ease-in-out; }
-      
+      /* Animation fallback styling */
       @keyframes flow {
         to { stroke-dashoffset: -20; }
       }
@@ -60,12 +54,12 @@
 
   <!-- Background Layer -->
   <rect width="100%" height="100%" fill="#080B11" />
-  <circle cx="420" cy="250" r="400" fill="url(#bg-glow)" />
+  <circle cx="480" cy="250" r="450" fill="url(#bg-glow)" />
 
   <!-- Grid Pattern overlay for tech aesthetic -->
   <g opacity="0.05">
-    <path d="M 0,50 L 840,50 M 0,100 L 840,100 M 0,150 L 840,150 M 0,200 L 840,200 M 0,250 L 840,250 M 0,300 L 840,300 M 0,350 L 840,350 M 0,400 L 840,400 M 0,450 L 840,450" stroke="#CCCCCC" stroke-width="1" />
-    <path d="M 100,0 L 100,500 M 200,0 L 200,500 M 300,0 L 300,500 M 400,0 L 400,500 M 500,0 L 500,500 M 600,0 L 600,500 M 700,0 L 700,500 M 800,0 L 800,500" stroke="#CCCCCC" stroke-width="1" />
+    <path d="M 0,50 L 960,50 M 0,100 L 960,100 M 0,150 L 960,150 M 0,200 L 960,200 M 0,250 L 960,250 M 0,300 L 960,300 M 0,350 L 960,350 M 0,400 L 960,400 M 0,450 L 960,450" stroke="#CCCCCC" stroke-width="1" />
+    <path d="M 100,0 L 100,500 M 200,0 L 200,500 M 300,0 L 300,500 M 400,0 L 400,500 M 500,0 L 500,500 M 600,0 L 600,500 M 700,0 L 700,500 M 800,0 L 800,500 M 900,0 L 900,500" stroke="#CCCCCC" stroke-width="1" />
   </g>
 
   <!-- Title & Subtitle -->
@@ -76,39 +70,43 @@
 
   <!-- FLOW CONNECTOR LINES -->
   <g stroke-linecap="round">
-    <!-- Line 1 to 2 -->
-    <path d="M 270,250 L 320,250" stroke="#6366F1" stroke-width="2" class="glow-purple" />
-    <path d="M 270,250 L 320,250" stroke="#A78BFA" stroke-width="2" class="flow-line" />
+    <!-- Line 1 to 2 (Gap: 290 to 340) -->
+    <path d="M 290,250 L 340,250" stroke="#6366F1" stroke-width="2" class="glow-purple" />
+    <path d="M 290,250 L 340,250" stroke="#A78BFA" stroke-width="2" class="flow-line" />
     
-    <!-- Line 2 to 3 -->
-    <path d="M 560,250 L 610,250" stroke="#3B82F6" stroke-width="2" class="glow-blue" />
-    <path d="M 560,250 L 610,250" stroke="#93C5FD" stroke-width="2" class="flow-line" />
+    <!-- Line 2 to 3 (Gap: 620 to 670) -->
+    <path d="M 620,250 L 670,250" stroke="#3B82F6" stroke-width="2" class="glow-blue" />
+    <path d="M 620,250 L 670,250" stroke="#93C5FD" stroke-width="2" class="flow-line" />
 
     <!-- Few-shot Feedback Loop (Bottom loop back) -->
-    <path d="M 720,380 L 720,440 L 155,440 L 155,380" fill="none" stroke="#10B981" stroke-width="2" class="glow-emerald" />
-    <path d="M 720,380 L 720,440 L 155,440 L 155,380" fill="none" stroke="#6EE7B7" stroke-width="2" class="flow-line" />
+    <path d="M 800,380 L 800,440 L 160,440 L 160,380" fill="none" stroke="#10B981" stroke-width="2" class="glow-emerald" />
+    <path d="M 800,380 L 800,440 L 160,440 L 160,380" fill="none" stroke="#6EE7B7" stroke-width="2" class="flow-line" />
   </g>
 
-  <!-- Loop Label -->
-  <rect x="340" y="425" width="200" height="30" rx="6" fill="#0D1527" stroke="#10B981" stroke-width="1" class="glow-emerald" />
-  <text class="body-text" x="440" y="444" text-anchor="middle" fill="#6EE7B7" style="font-weight: 500; font-size: 11px;">PROD FEEDBACK FLYWHEEL (FEW-SHOT TUNE)</text>
+  <!-- Connector labels placed cleanly in the column gaps to prevent borders overlap -->
+  <text class="body-text" x="315" y="235" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">COMPILING</text>
+  <text class="body-text" x="645" y="235" text-anchor="middle" fill="#93C5FD" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">TUNED RUN</text>
+
+  <!-- Loop Label Box - hides the loop line underneath using background fill -->
+  <rect x="360" y="425" width="240" height="30" rx="6" fill="#080B11" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
+  <text class="body-text" x="480" y="444" text-anchor="middle" fill="#6EE7B7" style="font-weight: 600; font-size: 10px; letter-spacing: 0.05em;">FEEDBACK FLYWHEEL (FEW-SHOT TUNE)</text>
 
   <!-- ==================== BOX 1: INPUT NODE ==================== -->
-  <g transform="translate(40, 100)">
+  <g transform="translate(30, 100)">
     <!-- Box boundary -->
-    <rect width="230" height="280" rx="12" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" class="glow-purple" />
-    <rect width="230" height="35" rx="12" fill="#4C1D95" fill-opacity="0.4" />
+    <rect width="260" height="280" rx="12" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" class="glow-purple" />
+    <rect width="260" height="35" rx="12" fill="#4C1D95" fill-opacity="0.4" />
     
     <!-- Title -->
     <text class="box-subtitle" x="15" y="22">01 / IMPERATIVE ENTRY</text>
     <text class="box-title" x="15" y="55">Standard Python Node</text>
     
     <!-- Description -->
-    <text class="body-text" x="15" y="78">Define your schema with Pydantic and</text>
+    <text class="body-text" x="15" y="78">Define schema with Pydantic and</text>
     <text class="body-text" x="15" y="96">decorate functions or wrap modules:</text>
 
     <!-- Code Block representation -->
-    <rect x="15" y="115" width="200" height="110" rx="8" fill="#090514" stroke="#4C1D95" stroke-width="1" />
+    <rect x="15" y="115" width="230" height="110" rx="8" fill="#090514" stroke="#4C1D95" stroke-width="1" />
     <text class="code-text" x="25" y="135">@self_correcting(retries=3)</text>
     <text class="code-text" x="25" y="152" fill="#3B82F6">def extract(text: str) -&gt; Output:</text>
     <text class="code-text" x="45" y="170" fill="#94A3B8">"""System instructions"""</text>
@@ -117,18 +115,18 @@
     <text class="code-text" x="25" y="212" fill="#E2E8F0"># Drops straight into LangGraph</text>
 
     <!-- Specs -->
-    <circle cx="20" cy="250" r="4" fill="#8B5CF6" />
-    <text class="body-text" x="32" y="254" font-size="11px">Reads types &amp; signatures dynamically</text>
+    <circle cx="20" cy="248" r="3.5" fill="#A78BFA" />
+    <text class="body-text" x="32" y="252" font-size="11px">Reads types and signatures dynamically</text>
     
-    <circle cx="20" cy="266" r="4" fill="#8B5CF6" />
-    <text class="body-text" x="32" y="270" font-size="11px">Supports standard dspy.Module classes</text>
+    <circle cx="20" cy="266" r="3.5" fill="#A78BFA" />
+    <text class="body-text" x="32" y="270" font-size="11px">Wraps functions or module classes</text>
   </g>
 
   <!-- ==================== BOX 2: TRANSPILER ==================== -->
-  <g transform="translate(320, 100)">
+  <g transform="translate(340, 100)">
     <!-- Box boundary -->
-    <rect width="240" height="280" rx="12" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" class="glow-blue" />
-    <rect width="240" height="35" rx="12" fill="#1E3A8A" fill-opacity="0.4" />
+    <rect width="280" height="280" rx="12" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" class="glow-blue" />
+    <rect width="280" height="35" rx="12" fill="#1E3A8A" fill-opacity="0.4" />
     
     <!-- Title -->
     <text class="box-subtitle" x="15" y="22">02 / COMPILATION ENGINE</text>
@@ -136,72 +134,69 @@
     
     <!-- Items -->
     <!-- Item 1: AST Analyzer -->
-    <g transform="translate(15, 80)">
-      <rect width="210" height="40" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 500;">AST Static Analysis</text>
-      <text class="body-text" x="12" y="32" fill="#94A3B8" font-size="10px">Isolates LLM calls, preserves native passthroughs</text>
+    <g transform="translate(15, 75)">
+      <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
+      <text class="body-text" x="12" y="18" style="font-weight: 600;">AST Static Analysis</text>
+      <text class="body-subtext" x="12" y="32">Isolates LLM nodes; passthroughs stay native</text>
     </g>
 
     <!-- Item 2: Signature Builder -->
-    <g transform="translate(15, 130)">
-      <rect width="210" height="40" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 500;">Dynamic Signature Builder</text>
-      <text class="body-text" x="12" y="32" fill="#94A3B8" font-size="10px">Compiles type structures to DSPy Input/OutputFields</text>
+    <g transform="translate(15, 127)">
+      <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
+      <text class="body-text" x="12" y="18" style="font-weight: 600;">Dynamic Signature Builder</text>
+      <text class="body-subtext" x="12" y="32">Maps Python types to input/output fields</text>
     </g>
 
     <!-- Item 3: DirectLM -->
-    <g transform="translate(15, 180)">
-      <rect width="210" height="40" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 500; fill: #60A5FA;">DirectLM Connection Pool</text>
-      <text class="body-text" x="12" y="32" fill="#94A3B8" font-size="10px">Bypasses LiteLLM for high-performance pooling</text>
+    <g transform="translate(15, 179)">
+      <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
+      <text class="body-text" x="12" y="18" style="font-weight: 600; fill: #60A5FA;">DirectLM Connection Pool</text>
+      <text class="body-subtext" x="12" y="32">Bypasses LiteLLM for high-performance reuse</text>
     </g>
     
     <!-- Item 4: json-repair -->
-    <g transform="translate(15, 230)">
-      <circle cx="10" cy="18" r="4" fill="#3B82F6" />
-      <text class="body-text" x="22" y="22" font-size="11px">Delegates JSON repairs to native parser</text>
+    <g transform="translate(15, 231)">
+      <rect width="250" height="38" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
+      <text class="body-text" x="12" y="16" style="font-weight: 600;">Automatic JSON Repair</text>
+      <text class="body-subtext" x="12" y="29">Delegates JSON repairs to native parser</text>
     </g>
   </g>
 
   <!-- ==================== BOX 3: OPTIMIZED RUNTIME ==================== -->
-  <g transform="translate(600, 100)">
+  <g transform="translate(670, 100)">
     <!-- Box boundary -->
-    <rect width="200" height="280" rx="12" fill="url(#grad-emerald)" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
-    <rect width="200" height="35" rx="12" fill="#064E3B" fill-opacity="0.4" />
+    <rect width="260" height="280" rx="12" fill="url(#grad-emerald)" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
+    <rect width="260" height="35" rx="12" fill="#064E3B" fill-opacity="0.4" />
     
     <!-- Title -->
     <text class="box-subtitle" x="15" y="22">03 / RELIABLE RUNTIME</text>
     <text class="box-title" x="15" y="55">Optimizable Program</text>
 
     <!-- Bullet points -->
-    <g transform="translate(15, 80)">
+    <g transform="translate(15, 75)">
       <!-- Line 1: Standard dspy.Module -->
-      <circle cx="5" cy="5" r="3" fill="#10B981" />
-      <text class="body-text" x="15" y="9" style="font-weight: 500;">Standard dspy.Module</text>
-      <text class="body-text" x="15" y="23" fill="#94A3B8" font-size="10px">Fully compatible with all DSPy optimizers</text>
+      <circle cx="5" cy="10" r="3.5" fill="#10B981" />
+      <text class="body-text" x="15" y="14" style="font-weight: 600;">Standard dspy.Module</text>
+      <text class="body-subtext" x="15" y="27">Compatible with all DSPy optimizers</text>
 
       <!-- Line 2: Self-Correction Loop -->
-      <circle cx="5" cy="45" r="3" fill="#10B981" />
-      <text class="body-text" x="15" y="49" style="font-weight: 500; fill: #34D399;">Self-Correction Feedback</text>
-      <text class="body-text" x="15" y="63" fill="#94A3B8" font-size="10px">Re-queries LLM with validation errors</text>
+      <circle cx="5" cy="50" r="3.5" fill="#10B981" />
+      <text class="body-text" x="15" y="54" style="font-weight: 600; fill: #34D399;">Self-Correction Loop</text>
+      <text class="body-subtext" x="15" y="67">Refines LLM output using validator errors</text>
 
       <!-- Line 3: Batch Reports -->
-      <circle cx="5" cy="85" r="3" fill="#10B981" />
-      <text class="body-text" x="15" y="89" style="font-weight: 500;">Batch Validation Reports</text>
-      <text class="body-text" x="15" y="103" fill="#94A3B8" font-size="10px">Out-of-the-box node error logging</text>
+      <circle cx="5" cy="90" r="3.5" fill="#10B981" />
+      <text class="body-text" x="15" y="94" style="font-weight: 600;">Batch Validation Reports</text>
+      <text class="body-subtext" x="15" y="107">Logs schema failure rates per node</text>
 
       <!-- Line 4: Connection details -->
-      <circle cx="5" cy="125" r="3" fill="#10B981" />
-      <text class="body-text" x="15" y="129" style="font-weight: 500;">Persistent HTTP Pools</text>
-      <text class="body-text" x="15" y="143" fill="#94A3B8" font-size="10px">Reuses sockets across concurrent calls</text>
+      <circle cx="5" cy="130" r="3.5" fill="#10B981" />
+      <text class="body-text" x="15" y="134" style="font-weight: 600;">Persistent HTTP Pools</text>
+      <text class="body-subtext" x="15" y="147">Reuses sockets across concurrent calls</text>
     </g>
 
     <!-- Optimization highlight tag -->
-    <rect x="15" y="235" width="170" height="30" rx="6" fill="#042F2C" stroke="#059669" stroke-dasharray="3, 3" />
-    <text class="body-text" x="100" y="254" text-anchor="middle" style="font-weight: 600; fill: #34D399; font-size: 11px;">TUNABLE VIA TELEPROMPTERS</text>
+    <rect x="15" y="235" width="230" height="30" rx="6" fill="#042F2C" stroke="#059669" stroke-dasharray="3, 3" />
+    <text class="body-text" x="130" y="254" text-anchor="middle" style="font-weight: 600; fill: #34D399; font-size: 11px;">TUNABLE VIA TELEPROMPTERS</text>
   </g>
-
-  <!-- Flow tags -->
-  <text class="body-text" x="295" y="240" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 500;">TRANSPILING</text>
-  <text class="body-text" x="585" y="240" text-anchor="middle" fill="#93C5FD" font-size="10px" style="font-weight: 500;">DEPLOYING</text>
 </svg>

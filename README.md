@@ -255,7 +255,7 @@ from dspy_transpiler.utils import load_logged_dataset
 
 # We must specify which keys act as model inputs
 trainset = load_logged_dataset(
-    log_path="logs/flywheel.jsonl",
+    dataset_log_path="logs/flywheel.jsonl",
     input_keys=["query"]
 )
 ```
