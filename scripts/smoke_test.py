@@ -40,7 +40,7 @@ def run_smoke_test():
         @self_correcting(max_retries=2)
         def mock_step(query: str) -> OutputSchema:
             """Mock step instructions."""
-            pass
+            return OutputSchema(result="dummy")
 
         from dspyer.compiler import DirectLM
 
@@ -49,7 +49,7 @@ def run_smoke_test():
         def mock_generate_sync(prompt, system_prompt=None):
             return '{"result": "success"}'
 
-        lm.client.generate_sync = mock_generate_sync
+        setattr(lm.client, "generate_sync", mock_generate_sync)
         dspy.settings.configure(lm=lm)
 
         response = mock_step(query="hello")

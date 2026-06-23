@@ -14,9 +14,9 @@ python3 scripts/verify_links.py
 
 # 2. Run local code quality gates
 echo -e "\n[2/5] Running style & type checks..."
-uv run ruff check dspyer tests examples
-uv run ruff format --check dspyer tests examples
-uv run mypy dspyer tests examples
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy dspyer tests examples scripts
 
 # 3. Run full unit test suite
 echo -e "\n[3/5] Running pytest suite..."
