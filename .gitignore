@@ -57,3 +57,6 @@ env/
 agents.md
 arch-1.md
 issues/
+
+# MkDocs build directory
+site/

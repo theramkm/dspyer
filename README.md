@@ -185,7 +185,7 @@ optimized.save_prompts("agent_config.json")
 production_program.load_prompts("agent_config.json")
 ```
 
-On a bundled sentiment benchmark ([`examples/benchmark.py`](examples/benchmark.py), run with a simulated backend), optimization lifts accuracy **60% → 90%**, tuning only the reasoning node.
+On a bundled sentiment benchmark ([`examples/benchmark.py`](https://github.com/theramkm/dspyer/blob/main/examples/benchmark.py), run with a simulated backend), optimization lifts accuracy **60% → 90%**, tuning only the reasoning node.
 
 ### 3. Orchestrator Integration (LangGraph)
 You do not need to replace your orchestrator. You can compile individual `dspyer` nodes and invoke them inside existing LangGraph nodes:
@@ -283,4 +283,4 @@ Pre-release (`0.3.0`), actively developed. Green CI across Python 3.10 to 3.14, 
 
 ## License
 
-[Apache License 2.0](LICENSE).
+[Apache License 2.0](https://github.com/theramkm/dspyer/blob/main/LICENSE).

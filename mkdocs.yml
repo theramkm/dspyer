@@ -1,0 +1,67 @@
+site_name: dspyer
+site_description: A transpiler from stateful imperative workflows to declarative DSPy programs
+site_author: theramkm
+site_url: https://theramkm.github.io/dspyer/
+
+theme:
+  name: material
+  palette:
+    # Light mode color palette
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Dark mode color palette
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: emerald
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Outfit
+    code: JetBrains Mono
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.instant
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+
+plugins:
+  - search
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [.]
+          options:
+            show_source: true
+            show_root_heading: true
+            show_category_heading: true
+            inherited_members: true
+
+nav:
+  - Introduction: index.md
+  - Agents: agents.md
+  - Architecture: arch-1.md
+  - API Reference: api.md

@@ -6,7 +6,7 @@ from dspy_transpiler.graph import Graph, StatefulNode
 from dspy_transpiler.state import ImmutableState
 from dspy_transpiler.utils import generate_validation_report, load_logged_dataset
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 __all__ = [
     "AgentTranspiler",
