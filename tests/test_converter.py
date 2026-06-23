@@ -2,8 +2,9 @@ import pytest
 
 pytest.importorskip("langgraph")
 
-from typing import Any, TypedDict
+from typing import Any, Optional, TypedDict
 
+import dspy
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,7 @@ class TestStateDict(TypedDict):
 # Node functions for LangGraph
 def node_a(state: TestStateDict):
     """Instructions for node A: increment count."""
+    _ = dspy.Predict
     return {
         "input_text": state.get("input_text", ""),
         "processed_count": state.get("processed_count", 0) + 1,
@@ -31,6 +33,7 @@ def node_a(state: TestStateDict):
 
 def node_b(state: TestStateDict):
     """Instructions for node B: evaluate decision."""
+    _ = dspy.Predict
     decision_val = "loop" if state.get("processed_count", 0) < 2 else "end"
     return {
         "input_text": state.get("input_text", ""),
@@ -198,7 +201,7 @@ def test_from_langgraph_auto_scaffold_execution(monkeypatch):
     builder.add_edge("NodeA", END)
 
     # Use a warnings context manager to catch the warning
-    with pytest.warns(UserWarning, match="Auto-generating StatefulNode 'NodeA'"):
+    with pytest.warns(UserWarning, match="Auto-generating LLM StatefulNode 'NodeA'"):
         dspyer_graph = from_langgraph(builder)
 
     program = AgentTranspiler.compile(dspyer_graph)
@@ -209,7 +212,7 @@ def test_from_langgraph_auto_scaffold_execution(monkeypatch):
 
     def mock_predict(**kwargs):
         assert "processed_count" in kwargs
-        assert "decision" in kwargs
+        assert "decision" not in kwargs
         res = MockOutput()
         return res
 
@@ -219,3 +222,90 @@ def test_from_langgraph_auto_scaffold_execution(monkeypatch):
     result = program(input_text="only_this")
     assert result["processed_count"] == 5
     assert result["input_text"] == "only_this"
+
+
+def test_from_langgraph_passthrough_execution():
+    # 1. Deterministic pure-python node functions (no LLM references)
+    def normal_node(state: TestStateDict):
+        return {"processed_count": state.get("processed_count", 0) + 10}
+
+    builder = StateGraph(TestStateDict)
+    builder.add_node("NormalNode", normal_node)
+    builder.add_edge(START, "NormalNode")
+    builder.add_edge("NormalNode", END)
+
+    # 2. Convert and compile - no warning should be raised for non-LLM nodes!
+    dspyer_graph = from_langgraph(builder)
+    assert dspyer_graph.nodes["NormalNode"].is_passthrough is True
+    assert dspyer_graph.nodes["NormalNode"].callable == normal_node
+
+    program = AgentTranspiler.compile(dspyer_graph)
+    # Check that predictor is NOT set up for this passthrough node
+    assert not hasattr(program, "predictor_NormalNode")
+
+    # 3. Execute
+    result = program(processed_count=5)
+    assert result["processed_count"] == 15
+
+
+def test_from_langgraph_dynamic_llm_nodes_raise_error():
+    # A. Dynamic lookup state[var]
+    def dynamic_lookup_node(state: Any):
+        _ = dspy.Predict
+        var = "input_text"
+        return {"decision": state[var]}
+
+    # B. Dynamic dict unpack **state
+    def dynamic_unpack_node(state: Any):
+        _ = dspy.Predict
+        _other = {**state}
+        return {"decision": "ok"}
+
+    # C. Dynamic return of a variable
+    def dynamic_return_node(state: Any):
+        _ = dspy.Predict
+        res = {"decision": "ok"}
+        return res
+
+    for fn in (dynamic_lookup_node, dynamic_unpack_node, dynamic_return_node):
+        builder = StateGraph(TestStateDict)
+        builder.add_node("TestNode", fn)
+        builder.add_edge(START, "TestNode")
+        builder.add_edge("TestNode", END)
+
+        with pytest.raises(
+            ValueError,
+            match="cannot be dynamically converted because it utilizes dynamic state accesses",
+        ):
+            from_langgraph(builder)
+
+
+def test_from_langgraph_narrow_schema_resolution():
+    class BigState(BaseModel):
+        needed_in: str
+        needed_out: int
+        unrelated: float = 1.0
+
+    def target_node(state: BigState):
+        """Docstring signature."""
+        _ = dspy.Predict
+        query = state.needed_in
+        return {"needed_out": len(query)}
+
+    # Check narrow schema generation when state is Pydantic BaseModel
+    class MockBuilder:
+        state_schema = BigState
+        nodes = {"NodeA": target_node}
+        edges = [("START", "NodeA"), ("NodeA", "END")]
+        branches = {}
+
+    dspyer_graph = from_langgraph(MockBuilder())
+    node = dspyer_graph.nodes["NodeA"]
+
+    assert "needed_in" in node.input_model.model_fields
+    assert "unrelated" not in node.input_model.model_fields
+    assert node.input_model.model_fields["needed_in"].annotation == Optional[str]
+
+    assert "needed_out" in node.output_model.model_fields
+    assert "unrelated" not in node.output_model.model_fields
+    assert node.output_model.model_fields["needed_out"].annotation == Optional[int]

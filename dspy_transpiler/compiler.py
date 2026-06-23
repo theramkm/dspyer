@@ -662,6 +662,8 @@ class TranspiledAgentProgram(dspy.Module):
 
         # Statically bind predictors and refiners for ALL registered nodes
         for node in graph.nodes.values():
+            if getattr(node, "is_passthrough", False):
+                continue
             sig = DynamicSignatureBuilder.build(node)
             predictor = dspy.Predict(sig)
             setattr(self, f"predictor_{node.name}", predictor)
@@ -684,6 +686,31 @@ class TranspiledAgentProgram(dspy.Module):
         Runs execution pipeline for a single node including pre-flight checks,
         predictions, output Pydantic validations, retries, and telemetry hooks.
         """
+        if getattr(node, "is_passthrough", False) and node.callable is not None:
+            with trace_span(f"node.{node.name}", state.to_dict()) as span:
+                try:
+                    patch = node.callable(state.to_dict())
+                    if patch is None:
+                        patch = {}
+                    if not isinstance(patch, dict):
+                        raise ValueError(
+                            f"Deterministic node '{node.name}' must return a dictionary patch, got {type(patch)}."
+                        )
+                    state = state.apply_patch(patch)
+                    for k, v in patch.items():
+                        span.set_attribute(f"output.{k}", str(v))
+                    return state
+                except Exception as err:
+                    span.set_status("ERROR", str(err))
+                    raise GraphExecutionError(
+                        node_name=node.name,
+                        inputs=state.to_dict(),
+                        raw_output=None,
+                        error_feedback=str(err),
+                        retries=0,
+                        original_exception=err,
+                    ) from err
+
         effective_max_retries = node.max_retries if node.max_retries is not None else max_retries
         predictor = getattr(self, f"predictor_{node.name}")
         refiner = getattr(self, f"refiner_{node.name}")
@@ -1006,6 +1033,14 @@ class TranspiledAgentProgram(dspy.Module):
                     refiner.signature = sig.with_instructions(node_cfg["refine_instructions"])
                 else:
                     sig.instructions = node_cfg["refine_instructions"]
+
+    def save_prompts(self, path: str) -> None:
+        """Alias for save_config to serialize optimized node instructions."""
+        self.save_config(path)
+
+    def load_prompts(self, path: str) -> None:
+        """Alias for load_config to rehydrate optimized node instructions."""
+        self.load_config(path)
 
 
 class AgentTranspiler:

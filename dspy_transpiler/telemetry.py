@@ -3,6 +3,7 @@ import logging
 import time
 import uuid
 from contextlib import contextmanager
+from contextvars import ContextVar
 from typing import Any, Dict, Generator, Optional
 
 logger = logging.getLogger("dspyer.telemetry")
@@ -21,6 +22,26 @@ if HAS_OTEL:
         otel_tracer = None
 else:
     otel_tracer = None
+
+
+_current_span: ContextVar[Optional["TelemetrySpan"]] = ContextVar("current_span", default=None)
+
+
+def get_current_span() -> Optional[Any]:
+    """Retrieve the current active TelemetrySpan or standard OpenTelemetry span."""
+    span = _current_span.get()
+    if span is not None:
+        return span
+    if HAS_OTEL:
+        try:
+            from opentelemetry import trace
+
+            otel_span = trace.get_current_span()
+            if otel_span and otel_span.is_recording():
+                return otel_span
+        except Exception:
+            pass
+    return None
 
 
 class TelemetrySpan:
@@ -91,42 +112,46 @@ def trace_span(
     span_id = str(uuid.uuid4())
     span = TelemetrySpan(name, trace_id, span_id)
 
-    if HAS_OTEL and otel_tracer:
-        from opentelemetry.trace import Status, StatusCode
+    token = _current_span.set(span)
+    try:
+        if HAS_OTEL and otel_tracer:
+            from opentelemetry.trace import Status, StatusCode
 
-        ctx = None
-        if parent and parent.otel_span:
-            from opentelemetry.trace import set_span_in_context
+            ctx = None
+            if parent and parent.otel_span:
+                from opentelemetry.trace import set_span_in_context
 
-            ctx = set_span_in_context(parent.otel_span)
+                ctx = set_span_in_context(parent.otel_span)
 
-        # Start OTel span
-        otel_s = otel_tracer.start_span(name, context=ctx)
-        span.otel_span = otel_s
+            # Start OTel span
+            otel_s = otel_tracer.start_span(name, context=ctx)
+            span.otel_span = otel_s
 
-        # Log input attributes
-        for k, v in inputs.items():
-            otel_s.set_attribute(f"input.{k}", str(v))
+            # Log input attributes
+            for k, v in inputs.items():
+                otel_s.set_attribute(f"input.{k}", str(v))
 
-        try:
-            yield span
-        except Exception as e:
-            otel_s.set_status(Status(StatusCode.ERROR, description=str(e)))
-            otel_s.record_exception(e)
-            raise
-        finally:
-            otel_s.end()
-    else:
-        # Structured log fallback
-        logger.info(f"[SPAN START] TraceID: {trace_id} | SpanID: {span_id} | Node: {name}")
-        logger.debug(f"[SPAN DATA] TraceID: {trace_id} | SpanID: {span_id} | Inputs: {inputs}")
-        try:
-            yield span
-            logger.info(
-                f"[SPAN SUCCESS] TraceID: {trace_id} | SpanID: {span_id} | Duration: {time.time() - span.start_time:.4f}s"
-            )
-        except Exception as e:
-            logger.error(
-                f"[SPAN ERROR] TraceID: {trace_id} | SpanID: {span_id} | Error: {str(e)} | Duration: {time.time() - span.start_time:.4f}s"
-            )
-            raise
+            try:
+                yield span
+            except Exception as e:
+                otel_s.set_status(Status(StatusCode.ERROR, description=str(e)))
+                otel_s.record_exception(e)
+                raise
+            finally:
+                otel_s.end()
+        else:
+            # Structured log fallback
+            logger.info(f"[SPAN START] TraceID: {trace_id} | SpanID: {span_id} | Node: {name}")
+            logger.debug(f"[SPAN DATA] TraceID: {trace_id} | SpanID: {span_id} | Inputs: {inputs}")
+            try:
+                yield span
+                logger.info(
+                    f"[SPAN SUCCESS] TraceID: {trace_id} | SpanID: {span_id} | Duration: {time.time() - span.start_time:.4f}s"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[SPAN ERROR] TraceID: {trace_id} | SpanID: {span_id} | Error: {str(e)} | Duration: {time.time() - span.start_time:.4f}s"
+                )
+                raise
+    finally:
+        _current_span.reset(token)

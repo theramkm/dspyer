@@ -45,3 +45,9 @@ jobs:
 
       - name: Run Tests
         run: uv run pytest
+
+      - name: Run Hero Demo Check
+        run: uv run examples/hero_demo.py
+
+      - name: Run Benchmarks Check
+        run: uv run examples/benchmark.py

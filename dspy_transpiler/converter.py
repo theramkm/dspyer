@@ -1,5 +1,8 @@
+import ast
+import inspect
+import textwrap
 import typing
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Set, Tuple
 
 from pydantic import BaseModel, create_model
 
@@ -62,6 +65,206 @@ def _extract_langgraph_structures(state_graph: Any) -> tuple[Any, dict, list, di
     return state_schema, nodes, edges, branches
 
 
+class StateVisitor(ast.NodeVisitor):
+    def __init__(self, state_var_name: str):
+        self.state_var_name = state_var_name
+        self.input_keys: Set[str] = set()
+        self.output_keys: Set[str] = set()
+        self.is_llm = False
+        self.is_dynamic = False
+
+    def visit_Name(self, node: ast.Name):
+        if node.id in ("dspy", "openai", "anthropic", "litellm"):
+            self.is_llm = True
+        if node.id == self.state_var_name:
+            self.is_dynamic = True
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute):
+        if node.attr in ("dspy", "openai", "anthropic", "litellm"):
+            self.is_llm = True
+        if isinstance(node.value, ast.Name) and node.value.id == self.state_var_name:
+            if node.attr not in (
+                "get",
+                "keys",
+                "values",
+                "items",
+                "copy",
+                "update",
+                "clear",
+                "pop",
+                "popitem",
+                "setdefault",
+            ):
+                self.input_keys.add(node.attr)
+            return
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node: ast.Subscript):
+        if isinstance(node.value, ast.Name) and node.value.id == self.state_var_name:
+            slice_node = node.slice
+            if slice_node.__class__.__name__ == "Index":
+                slice_node = getattr(slice_node, "value")
+            if isinstance(slice_node, ast.Constant):
+                val = slice_node.value
+                if isinstance(val, str):
+                    self.input_keys.add(val)
+                else:
+                    self.is_dynamic = True
+            elif isinstance(slice_node, ast.Str):  # Python < 3.8
+                s_val = slice_node.s
+                if isinstance(s_val, str):
+                    self.input_keys.add(s_val)
+            else:
+                self.is_dynamic = True
+            return
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call):
+        if (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == self.state_var_name
+        ):
+            if node.func.attr == "get":
+                if node.args:
+                    first_arg = node.args[0]
+                    if isinstance(first_arg, ast.Constant):
+                        val = first_arg.value
+                        if isinstance(val, str):
+                            self.input_keys.add(val)
+                        else:
+                            self.is_dynamic = True
+                    elif isinstance(first_arg, ast.Str):
+                        s_val = first_arg.s
+                        if isinstance(s_val, str):
+                            self.input_keys.add(s_val)
+                        else:
+                            self.is_dynamic = True
+                    else:
+                        self.is_dynamic = True
+                else:
+                    self.is_dynamic = True
+                for arg in node.args[1:]:
+                    self.visit(arg)
+                for kw in node.keywords:
+                    self.visit(kw)
+                return
+        if isinstance(node.func, ast.Attribute):
+            if node.func.attr in ("invoke", "ainvoke", "generate", "predict"):
+                self.is_llm = True
+        elif isinstance(node.func, ast.Name):
+            if node.func.id in ("invoke", "ainvoke", "generate", "predict"):
+                self.is_llm = True
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign):
+        for target in node.targets:
+            if (
+                isinstance(target, ast.Subscript)
+                and isinstance(target.value, ast.Name)
+                and target.value.id == self.state_var_name
+            ):
+                slice_node = target.slice
+                if slice_node.__class__.__name__ == "Index":
+                    slice_node = getattr(slice_node, "value")
+                if isinstance(slice_node, ast.Constant):
+                    val = slice_node.value
+                    if isinstance(val, str):
+                        self.output_keys.add(val)
+                    else:
+                        self.is_dynamic = True
+                elif isinstance(slice_node, ast.Str):
+                    s_val = slice_node.s
+                    if isinstance(s_val, str):
+                        self.output_keys.add(s_val)
+                    else:
+                        self.is_dynamic = True
+                else:
+                    self.is_dynamic = True
+                self.visit(node.value)
+                continue
+            self.visit(target)
+        self.visit(node.value)
+
+    def visit_Dict(self, node: ast.Dict):
+        for key, value in zip(node.keys, node.values):
+            if key is None:
+                if isinstance(value, ast.Name) and value.id == self.state_var_name:
+                    self.is_dynamic = True
+        self.generic_visit(node)
+
+    def visit_Return(self, node: ast.Return):
+        if node.value is None:
+            pass
+        elif isinstance(node.value, ast.Dict):
+            for key_node in node.value.keys:
+                if isinstance(key_node, ast.Constant):
+                    val = key_node.value
+                    if isinstance(val, str):
+                        self.output_keys.add(val)
+                    else:
+                        self.is_dynamic = True
+                elif isinstance(key_node, ast.Str):
+                    s_val = key_node.s
+                    if isinstance(s_val, str):
+                        self.output_keys.add(s_val)
+                    else:
+                        self.is_dynamic = True
+                else:
+                    self.is_dynamic = True
+            for val_node in node.value.values:
+                self.visit(val_node)
+        else:
+            self.is_dynamic = True
+            self.visit(node.value)
+
+
+class FuncFinder(ast.NodeVisitor):
+    def __init__(self):
+        self.node = None
+
+    def visit_FunctionDef(self, node):
+        if self.node is None:
+            self.node = node
+
+    def visit_Lambda(self, node):
+        if self.node is None:
+            self.node = node
+
+
+def analyze_node_function(func: Any) -> Tuple[bool, Set[str], Set[str], bool]:
+    """
+    Statically analyzes a node function or callable using AST.
+    Returns: (is_llm, input_keys, output_keys, is_dynamic)
+    """
+    try:
+        source = inspect.getsource(func)
+        source = textwrap.dedent(source)
+        tree = ast.parse(source)
+    except Exception:
+        return False, set(), set(), True
+
+    finder = FuncFinder()
+    finder.visit(tree)
+    func_node = finder.node
+    if func_node is None:
+        return False, set(), set(), True
+
+    state_var_name = None
+    if func_node.args.args:
+        state_var_name = func_node.args.args[0].arg
+    elif func_node.args.posonlyargs:
+        state_var_name = func_node.args.posonlyargs[0].arg
+
+    if not state_var_name:
+        return False, set(), set(), True
+
+    visitor = StateVisitor(state_var_name)
+    visitor.visit(func_node)
+    return visitor.is_llm, visitor.input_keys, visitor.output_keys, visitor.is_dynamic
+
+
 def from_langgraph(
     state_graph: Any,
     node_mappings: Optional[Dict[str, StatefulNode]] = None,
@@ -114,40 +317,90 @@ def from_langgraph(
                     node.use_cot = cfg["use_cot"]
             dspyer_graph.add_node(node)
         else:
-            # Auto-generate StatefulNode from function docstring & inputs/outputs
             runnable = getattr(node_spec, "runnable", node_spec)
             func = getattr(runnable, "func", runnable)
-            docstring = getattr(func, "__doc__", None)
 
-            instructions = (
-                docstring.strip() if docstring else f"Execute agent step for node '{node_name}'."
-            )
+            is_llm, input_keys, output_keys, is_dynamic = analyze_node_function(func)
 
-            import warnings
+            if not is_llm:
+                # Deterministic node: Execute as native Python passthrough
+                permissive_input = make_permissive_model(pydantic_state, f"{node_name}Input")
+                permissive_output = make_permissive_model(pydantic_state, f"{node_name}Output")
+                cfg = node_configs.get(node_name, {})
+                passthrough_node = StatefulNode(
+                    name=node_name,
+                    input_model=permissive_input,
+                    output_model=permissive_output,
+                    instructions=None,
+                    max_retries=cfg.get("max_retries"),
+                    refine_instructions=cfg.get("refine_instructions"),
+                    use_cot=cfg.get("use_cot", False),
+                )
+                passthrough_node.is_passthrough = True
+                passthrough_node.callable = func
+                dspyer_graph.add_node(passthrough_node)
+            else:
+                if is_dynamic:
+                    raise ValueError(
+                        f"LLM-containing node '{node_name}' cannot be dynamically converted because it utilizes dynamic "
+                        f"state accesses (e.g. dynamic keys, unpackings, or dynamic returns). "
+                        f"Please map this node explicitly by providing a mapped dspyer.StatefulNode in 'node_mappings'."
+                    )
 
-            warnings.warn(
-                f"Auto-generating StatefulNode '{node_name}' with the full state schema. "
-                "This serves as a scaffold stub and does not preserve original function logic. "
-                "For a behavior-preserving execution, map this node explicitly using 'node_mappings'.",
-                UserWarning,
-                stacklevel=2,
-            )
+                docstring = getattr(func, "__doc__", None)
+                instructions = (
+                    docstring.strip()
+                    if docstring
+                    else f"Execute agent step for node '{node_name}'."
+                )
 
-            permissive_input = make_permissive_model(pydantic_state, f"{node_name}Input")
-            permissive_output = make_permissive_model(pydantic_state, f"{node_name}Output")
+                import warnings
 
-            cfg = node_configs.get(node_name, {})
-            generated_node = StatefulNode(
-                name=node_name,
-                input_model=permissive_input,
-                output_model=permissive_output,
-                instructions=instructions,
-                max_retries=cfg.get("max_retries"),
-                refine_instructions=cfg.get("refine_instructions"),
-                use_cot=cfg.get("use_cot", False),
-            )
-            generated_node._is_autogenerated = True
-            dspyer_graph.add_node(generated_node)
+                warnings.warn(
+                    f"Auto-generating LLM StatefulNode '{node_name}' with a dynamically derived narrow state schema. "
+                    "This serves as a compiled DSPy scaffold stub and does not execute the original Python function body. "
+                    "For a behavior-preserving execution or custom prompts, map this node explicitly using 'node_mappings'.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
+                input_fields: Dict[str, Any] = {}
+                for key in input_keys:
+                    if key in pydantic_state.model_fields:
+                        field_info = pydantic_state.model_fields[key]
+                        annotation = field_info.annotation or Any
+                        input_fields[key] = (Optional[annotation], None)
+                    else:
+                        input_fields[key] = (Any, None)
+                if not input_fields:
+                    input_fields["placeholder"] = (Optional[str], "default")
+
+                output_fields: Dict[str, Any] = {}
+                for key in output_keys:
+                    if key in pydantic_state.model_fields:
+                        field_info = pydantic_state.model_fields[key]
+                        annotation = field_info.annotation or Any
+                        output_fields[key] = (Optional[annotation], None)
+                    else:
+                        output_fields[key] = (Any, None)
+                if not output_fields:
+                    output_fields["placeholder"] = (Optional[str], "default")
+
+                narrow_input = create_model(f"{node_name}Input", **input_fields)
+                narrow_output = create_model(f"{node_name}Output", **output_fields)
+
+                cfg = node_configs.get(node_name, {})
+                generated_node = StatefulNode(
+                    name=node_name,
+                    input_model=narrow_input,
+                    output_model=narrow_output,
+                    instructions=instructions,
+                    max_retries=cfg.get("max_retries"),
+                    refine_instructions=cfg.get("refine_instructions"),
+                    use_cot=cfg.get("use_cot", False),
+                )
+                generated_node._is_autogenerated = True
+                dspyer_graph.add_node(generated_node)
 
     # 4. Map static edges
     for source, target in edges:
