@@ -43,7 +43,15 @@ Each is shown with runnable code under [Core Capabilities](#core-capabilities).
 
 ## Install
 
-> **Pre-release (`0.3.0`)**: Install directly from GitHub:
+Install standard releases directly from PyPI:
+
+```bash
+pip install dspyer
+# or using uv:
+uv add dspyer
+```
+
+Alternatively, install the latest pre-release directly from GitHub:
 
 ```bash
 pip install git+https://github.com/theramkm/dspyer.git
