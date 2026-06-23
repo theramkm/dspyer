@@ -75,7 +75,7 @@ class HeroMockLM(dspy.LM):
                 '{"response": "dspyer uses the Apache-2.0 license.", "citations": ["doc_license"]}'
             )
         elif "what is the version" in prompt_str.lower():
-            content = '{"response": "dspyer is at version 0.1.0.", "citations": ["doc_ver"]}'
+            content = '{"response": "dspyer is at version 0.1.1.", "citations": ["doc_ver"]}'
         # 2. Mock response for correction retry pass
         elif "failed_output" in prompt_str or "feedback" in prompt_str:
             content = '{"response": "Paris is the capital of France.", "citations": ["doc_geo"]}'
@@ -183,7 +183,7 @@ def main():
         ).with_inputs("query"),
         dspy.Example(
             query="What is the version?",
-            response="dspyer is at version 0.1.0.",
+            response="dspyer is at version 0.1.1.",
             citations=["doc_ver"],
         ).with_inputs("query"),
     ]
