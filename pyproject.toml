@@ -1,6 +1,6 @@
 [project]
 name = "dspyer"
-version = "0.3.0"
+version = "0.3.1"
 description = "A transpiler from stateful imperative workflows to declarative DSPy programs"
 readme = "README.md"
 requires-python = ">=3.10"
