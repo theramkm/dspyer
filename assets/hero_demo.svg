@@ -70,92 +70,92 @@
 
   <!-- FLOW CONNECTOR LINES -->
   <g stroke-linecap="round">
-    <!-- Line 1 to 2 (Gap: 290 to 340) -->
-    <path d="M 290,250 L 340,250" stroke="#6366F1" stroke-width="2" class="glow-purple" />
-    <path d="M 290,250 L 340,250" stroke="#A78BFA" stroke-width="2" class="flow-line" />
+    <!-- Line 1 to 2 (Gap: 280 to 340) -->
+    <path d="M 280,250 L 340,250" stroke="#6366F1" stroke-width="2" class="glow-purple" />
+    <path d="M 280,250 L 340,250" stroke="#A78BFA" stroke-width="2" class="flow-line" />
     
-    <!-- Line 2 to 3 (Gap: 620 to 670) -->
-    <path d="M 620,250 L 670,250" stroke="#3B82F6" stroke-width="2" class="glow-blue" />
-    <path d="M 620,250 L 670,250" stroke="#93C5FD" stroke-width="2" class="flow-line" />
+    <!-- Line 2 to 3 (Gap: 610 to 690) -->
+    <path d="M 610,250 L 690,250" stroke="#3B82F6" stroke-width="2" class="glow-blue" />
+    <path d="M 610,250 L 690,250" stroke="#93C5FD" stroke-width="2" class="flow-line" />
 
     <!-- Few-shot Feedback Loop (Bottom loop back) -->
-    <path d="M 800,380 L 800,440 L 160,440 L 160,380" fill="none" stroke="#10B981" stroke-width="2" class="glow-emerald" />
-    <path d="M 800,380 L 800,440 L 160,440 L 160,380" fill="none" stroke="#6EE7B7" stroke-width="2" class="flow-line" />
+    <path d="M 810,380 L 810,440 L 155,440 L 155,380" fill="none" stroke="#10B981" stroke-width="2" class="glow-emerald" />
+    <path d="M 810,380 L 810,440 L 155,440 L 155,380" fill="none" stroke="#6EE7B7" stroke-width="2" class="flow-line" />
   </g>
 
   <!-- Connector labels placed cleanly in the column gaps to prevent borders overlap -->
-  <text class="body-text" x="315" y="235" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">COMPILING</text>
-  <text class="body-text" x="645" y="235" text-anchor="middle" fill="#93C5FD" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">TUNED RUN</text>
+  <text class="body-text" x="310" y="235" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">COMPILING</text>
+  <text class="body-text" x="650" y="235" text-anchor="middle" fill="#93C5FD" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">TUNED RUNTIME</text>
 
   <!-- Loop Label Box - hides the loop line underneath using background fill -->
-  <rect x="360" y="425" width="240" height="30" rx="6" fill="#080B11" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
+  <rect x="300" y="425" width="360" height="30" rx="6" fill="#080B11" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
   <text class="body-text" x="480" y="444" text-anchor="middle" fill="#6EE7B7" style="font-weight: 600; font-size: 10px; letter-spacing: 0.05em;">FEEDBACK FLYWHEEL (FEW-SHOT TUNE)</text>
 
   <!-- ==================== BOX 1: INPUT NODE ==================== -->
   <g transform="translate(30, 100)">
     <!-- Box boundary -->
-    <rect width="260" height="280" rx="12" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" class="glow-purple" />
-    <rect width="260" height="35" rx="12" fill="#4C1D95" fill-opacity="0.4" />
+    <rect width="250" height="280" rx="12" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" class="glow-purple" />
+    <rect width="250" height="35" rx="12" fill="#4C1D95" fill-opacity="0.4" />
     
     <!-- Title -->
-    <text class="box-subtitle" x="15" y="22">01 / IMPERATIVE ENTRY</text>
-    <text class="box-title" x="15" y="55">Standard Python Node</text>
+    <text class="box-subtitle" x="12" y="22">01 / IMPERATIVE ENTRY</text>
+    <text class="box-title" x="12" y="55">Standard Python Node</text>
     
     <!-- Description -->
-    <text class="body-text" x="15" y="78">Define schema with Pydantic and</text>
-    <text class="body-text" x="15" y="96">decorate functions or wrap modules:</text>
+    <text class="body-text" x="12" y="78">Define schema with Pydantic and</text>
+    <text class="body-text" x="12" y="96">decorate functions or wrap modules:</text>
 
     <!-- Code Block representation -->
-    <rect x="15" y="115" width="230" height="110" rx="8" fill="#090514" stroke="#4C1D95" stroke-width="1" />
-    <text class="code-text" x="25" y="135">@self_correcting(retries=3)</text>
-    <text class="code-text" x="25" y="152" fill="#3B82F6">def extract(text: str) -&gt; Output:</text>
-    <text class="code-text" x="45" y="170" fill="#94A3B8">"""System instructions"""</text>
-    <text class="code-text" x="45" y="188" fill="#F8FAFC">pass</text>
+    <rect x="10" y="115" width="230" height="110" rx="8" fill="#090514" stroke="#4C1D95" stroke-width="1" />
+    <text class="code-text" x="20" y="135">@self_correcting(retries=3)</text>
+    <text class="code-text" x="20" y="152" fill="#3B82F6">def extract(text: str) -&gt; Output:</text>
+    <text class="code-text" x="40" y="170" fill="#94A3B8">"""System instructions"""</text>
+    <text class="code-text" x="40" y="188" fill="#F8FAFC">pass</text>
     
-    <text class="code-text" x="25" y="212" fill="#E2E8F0"># Drops straight into LangGraph</text>
+    <text class="code-text" x="20" y="212" fill="#E2E8F0"># Drops straight into LangGraph</text>
 
     <!-- Specs -->
-    <circle cx="20" cy="248" r="3.5" fill="#A78BFA" />
-    <text class="body-text" x="32" y="252" font-size="11px">Reads types and signatures dynamically</text>
+    <circle cx="16" cy="248" r="3.5" fill="#A78BFA" />
+    <text class="body-text" x="28" y="252" font-size="11px">Reads types and signatures dynamically</text>
     
-    <circle cx="20" cy="266" r="3.5" fill="#A78BFA" />
-    <text class="body-text" x="32" y="270" font-size="11px">Wraps functions or module classes</text>
+    <circle cx="16" cy="266" r="3.5" fill="#A78BFA" />
+    <text class="body-text" x="28" y="270" font-size="11px">Wraps functions or module classes</text>
   </g>
 
   <!-- ==================== BOX 2: TRANSPILER ==================== -->
   <g transform="translate(340, 100)">
     <!-- Box boundary -->
-    <rect width="280" height="280" rx="12" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" class="glow-blue" />
-    <rect width="280" height="35" rx="12" fill="#1E3A8A" fill-opacity="0.4" />
+    <rect width="270" height="280" rx="12" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" class="glow-blue" />
+    <rect width="270" height="35" rx="12" fill="#1E3A8A" fill-opacity="0.4" />
     
     <!-- Title -->
-    <text class="box-subtitle" x="15" y="22">02 / COMPILATION ENGINE</text>
-    <text class="box-title" x="15" y="55">dspyer Transpilation Layer</text>
+    <text class="box-subtitle" x="12" y="22">02 / COMPILATION ENGINE</text>
+    <text class="box-title" x="12" y="55">dspyer Transpilation Layer</text>
     
     <!-- Items -->
     <!-- Item 1: AST Analyzer -->
-    <g transform="translate(15, 75)">
+    <g transform="translate(10, 75)">
       <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
       <text class="body-text" x="12" y="18" style="font-weight: 600;">AST Static Analysis</text>
       <text class="body-subtext" x="12" y="32">Isolates LLM nodes; passthroughs stay native</text>
     </g>
 
     <!-- Item 2: Signature Builder -->
-    <g transform="translate(15, 127)">
+    <g transform="translate(10, 127)">
       <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
       <text class="body-text" x="12" y="18" style="font-weight: 600;">Dynamic Signature Builder</text>
       <text class="body-subtext" x="12" y="32">Maps Python types to input/output fields</text>
     </g>
 
     <!-- Item 3: DirectLM -->
-    <g transform="translate(15, 179)">
+    <g transform="translate(10, 179)">
       <rect width="250" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
       <text class="body-text" x="12" y="18" style="font-weight: 600; fill: #60A5FA;">DirectLM Connection Pool</text>
       <text class="body-subtext" x="12" y="32">Bypasses LiteLLM for high-performance reuse</text>
     </g>
     
     <!-- Item 4: json-repair -->
-    <g transform="translate(15, 231)">
+    <g transform="translate(10, 231)">
       <rect width="250" height="38" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
       <text class="body-text" x="12" y="16" style="font-weight: 600;">Automatic JSON Repair</text>
       <text class="body-subtext" x="12" y="29">Delegates JSON repairs to native parser</text>
@@ -163,17 +163,17 @@
   </g>
 
   <!-- ==================== BOX 3: OPTIMIZED RUNTIME ==================== -->
-  <g transform="translate(670, 100)">
+  <g transform="translate(690, 100)">
     <!-- Box boundary -->
-    <rect width="260" height="280" rx="12" fill="url(#grad-emerald)" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
-    <rect width="260" height="35" rx="12" fill="#064E3B" fill-opacity="0.4" />
+    <rect width="240" height="280" rx="12" fill="url(#grad-emerald)" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
+    <rect width="240" height="35" rx="12" fill="#064E3B" fill-opacity="0.4" />
     
     <!-- Title -->
-    <text class="box-subtitle" x="15" y="22">03 / RELIABLE RUNTIME</text>
-    <text class="box-title" x="15" y="55">Optimizable Program</text>
+    <text class="box-subtitle" x="12" y="22">03 / RELIABLE RUNTIME</text>
+    <text class="box-title" x="12" y="55">Optimizable Program</text>
 
     <!-- Bullet points -->
-    <g transform="translate(15, 75)">
+    <g transform="translate(12, 75)">
       <!-- Line 1: Standard dspy.Module -->
       <circle cx="5" cy="10" r="3.5" fill="#10B981" />
       <text class="body-text" x="15" y="14" style="font-weight: 600;">Standard dspy.Module</text>
@@ -196,7 +196,7 @@
     </g>
 
     <!-- Optimization highlight tag -->
-    <rect x="15" y="235" width="230" height="30" rx="6" fill="#042F2C" stroke="#059669" stroke-dasharray="3, 3" />
-    <text class="body-text" x="130" y="254" text-anchor="middle" style="font-weight: 600; fill: #34D399; font-size: 11px;">TUNABLE VIA TELEPROMPTERS</text>
+    <rect x="10" y="235" width="220" height="30" rx="6" fill="#042F2C" stroke="#059669" stroke-dasharray="3, 3" />
+    <text class="body-text" x="120" y="254" text-anchor="middle" style="font-weight: 600; fill: #34D399; font-size: 11px;">TUNABLE VIA TELEPROMPTERS</text>
   </g>
 </svg>
