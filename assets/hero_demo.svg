@@ -85,7 +85,10 @@
 
   <!-- Connector labels placed cleanly in the column gaps to prevent borders overlap -->
   <text class="body-text" x="310" y="235" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">COMPILING</text>
-  <text class="body-text" x="660" y="235" text-anchor="middle" fill="#93C5FD" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">TUNED RUNTIME</text>
+  <text class="body-text" x="660" y="230" text-anchor="middle" fill="#93C5FD" font-size="9px" style="font-weight: 600; letter-spacing: 0.05em;">
+    <tspan x="660" dy="0">TUNED</tspan>
+    <tspan x="660" dy="11">RUNTIME</tspan>
+  </text>
 
   <!-- Loop Label Box - hides the loop line underneath using background fill -->
   <rect x="300" y="425" width="360" height="30" rx="6" fill="#080B11" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
