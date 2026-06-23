@@ -31,7 +31,7 @@ LLM nodes fail in messy ways: malformed JSON, missing fields, a citation that is
 
 ## Install
 
-> **Pre-release (`0.1.1`)** — not yet on PyPI. Install from GitHub:
+> **Pre-release (`0.2.0`)** — not yet on PyPI. Install from GitHub:
 
 ```bash
 pip install git+https://github.com/theramkm/dspyer.git
@@ -221,7 +221,7 @@ Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and
 
 ## Project status
 
-Pre-release (`0.1.1`), actively developed. Green CI across Python 3.10–3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 55-case test suite. APIs may shift before `1.0`. Issues and PRs welcome.
+Pre-release (`0.2.0`), actively developed. Green CI across Python 3.10–3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 55-case test suite. APIs may shift before `1.0`. Issues and PRs welcome.
 
 ## License
 
