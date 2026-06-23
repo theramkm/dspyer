@@ -48,7 +48,6 @@ def test_parse_and_validate_failure():
 
 
 def test_predictor_decorator_retry_and_success(monkeypatch):
-
     class MockInvalidPrediction:
         def __init__(self):
             self.output = '{"answer": "Berlin", "confidence": 0.3}'
