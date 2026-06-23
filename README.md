@@ -91,7 +91,7 @@ print("Citations:", r.citations)                                # ['doc_1']
 print("Self-correction loops:", r["_metadata"]["refinement_steps_taken"])  # 1
 ```
 
-Swap `MockLM` for a real model (`dspy.configure(lm=dspy.LM("openai/gpt-4o-mini"))`) and the same node works unchanged. Every script under [`examples/`](examples/) also runs offline with a simulated LM — try `python examples/run_rag_verifier.py`.
+To run it for real against a live language model, run: `python examples/quickstart.py` (which automatically checks your API key and runs the self-correcting RAG flow). For the offline version, try: `python examples/run_rag_verifier.py`.
 
 ---
 

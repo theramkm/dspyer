@@ -127,9 +127,9 @@ def main():
     result = program(query="What is the license of dspyer?")
 
     print("\n[+] Execution completed successfully!")
-    print(f"Synthesized Answer: {result.answer}")
-    print(f"Citations: {result.citations}")
-    print(f"Total correction loops run: {result['_metadata']['refinement_steps_taken']}")
+    print("Answer:   ", result.answer)
+    print("Citations:", result.citations)
+    print("Self-correction loops:", result["_metadata"]["refinement_steps_taken"])
 
 
 if __name__ == "__main__":
