@@ -2,7 +2,7 @@
 
 # ⚡ dspyer
 
-**Make any LLM step in your agent reliable and self-improving — typed outputs, automatic schema-validated retries, and one-call prompt optimization. Incrementally, without rewriting your stack.**
+**Make any LLM step in your agent reliable and self-improving: typed outputs, automatic schema-validated retries, and one-call prompt optimization. Incrementally, without rewriting your stack.**
 
 [![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
 [![Python 3.10-3.14](https://img.shields.io/badge/python-3.10--3.14-blue.svg?style=flat-square&logo=python)](https://github.com/theramkm/dspyer/actions)
@@ -18,20 +18,20 @@
 
 LLM nodes fail in messy ways: malformed JSON, missing fields, a citation that isn't there. The usual fix is hand-written `try/except`, re-prompting glue, and prompts you re-tune by hand every time you switch models.
 
-**dspyer** turns an LLM step into a typed unit that **repairs its own output against a Pydantic schema** and can be **prompt-optimized with one call** by [DSPy](https://github.com/stanfordnlp/dspy). Add it to a single function with a decorator, or compile a whole multi-step agent — and drop the result straight into your existing [LangGraph](https://github.com/langchain-ai/langgraph).
+**dspyer** turns an LLM step into a typed unit that **repairs its own output against a Pydantic schema** and can be **prompt-optimized with one call** by [DSPy](https://github.com/stanfordnlp/dspy). Add it to a single function with a decorator, or compile a whole multi-step agent, and drop the result straight into your existing [LangGraph](https://github.com/langchain-ai/langgraph).
 
 ### What you get
 
-- **Self-correction loops** — when output fails Pydantic validation, dspyer auto-generates natural-language feedback and re-queries the model until it conforms (or hits your retry budget).
-- **One-call prompt optimization** — compile to a standard `dspy.Module` and tune instructions + few-shot exemplars with any DSPy teleprompter (`BootstrapFewShot`, `MIPROv2`). Save the result as JSON, load it in production.
-- **Hybrid by design** — deterministic/tool nodes stay native Python (fast, exact); only your LLM-reasoning nodes get compiled and optimized. No waste, no corruption.
-- **Fits your stack** — Pydantic schemas, DSPy optimizers, LangGraph orchestration, OpenTelemetry tracing. Typed, tested, and incremental.
+- **Self-correction loops**: when output fails Pydantic validation, dspyer auto-generates natural-language feedback and re-queries the model until it conforms (or hits your retry budget).
+- **One-call prompt optimization**: compile to a standard `dspy.Module` and tune instructions + few-shot exemplars with any DSPy teleprompter (`BootstrapFewShot`, `MIPROv2`). Save the result as JSON, load it in production.
+- **Hybrid by design**: deterministic/tool nodes stay native Python (fast, exact); only your LLM-reasoning nodes get compiled and optimized. No waste, no corruption.
+- **Fits your stack**: Pydantic schemas, DSPy optimizers, LangGraph orchestration, OpenTelemetry tracing. Typed, tested, and incremental.
 
 ---
 
 ## Install
 
-> **Pre-release (`0.2.0`)** — not yet on PyPI. Install from GitHub:
+> **Pre-release (`0.2.0`)**: not yet on PyPI. Install from GitHub:
 
 ```bash
 pip install git+https://github.com/theramkm/dspyer.git
@@ -40,7 +40,7 @@ pip install git+https://github.com/theramkm/dspyer.git
 
 ---
 
-## Quickstart — self-correcting output in 30 seconds (no API key)
+## Quickstart: self-correcting output in 30 seconds (no API key)
 
 This runs offline. A node must return an answer **with a citation**; the model "forgets" the citation on its first try, fails validation, and dspyer repairs it automatically.
 
@@ -122,7 +122,7 @@ Deterministic nodes run as plain Python (fast, exact, never hallucinated). Only 
 
 ### 1. Self-correction
 
-**On a single module — one decorator.** The fastest way in. Wrap any `dspy.Module`/`dspy.Predict` and bad outputs repair themselves against your schema:
+**On a single module: one decorator.** The fastest way in. Wrap any `dspy.Module`/`dspy.Predict` and bad outputs repair themselves against your schema:
 
 ```python
 from dspy_transpiler import self_correcting
@@ -142,7 +142,7 @@ class Solver(dspy.Module):
         return self.solve(question=question)
 ```
 
-**On a graph — per node.** Set `max_retries` on a `StatefulNode` (see the Quickstart). Validation failures, malformed JSON, and missing fields all trigger the same repair loop.
+**On a graph: per node.** Set `max_retries` on a `StatefulNode` (see the Quickstart). Validation failures, malformed JSON, and missing fields all trigger the same repair loop.
 
 ### 2. Prompt optimization: tune, save, load
 
@@ -166,7 +166,7 @@ On the bundled 20-example sentiment benchmark ([`examples/benchmark.py`](example
 
 ### 3. LangGraph integration
 
-**Drop-in (recommended).** Compile a dspyer node and call it inside any LangGraph node function — no rewrite:
+**Drop-in (recommended).** Compile a dspyer node and call it inside any LangGraph node function with no rewrite:
 
 ```python
 compiled_agent = AgentTranspiler.compile(graph)   # a normal dspy.Module
@@ -189,7 +189,7 @@ graph = from_langgraph(builder, node_mappings=node_mappings)
 program = AgentTranspiler.compile(graph)
 ```
 
-> Calling `from_langgraph(builder)` with **no** mappings scaffolds only the topology — auto-generated LLM nodes are docstring-driven stubs that do **not** preserve your original function logic. Pass `node_mappings` for any node you want to run for real. (Lambdas / `partial` / C-callables can't be statically analyzed and safely fall back to native passthrough.)
+> Calling `from_langgraph(builder)` with **no** mappings scaffolds only the topology. Auto-generated LLM nodes are docstring-driven stubs that do **not** preserve your original function logic. Pass `node_mappings` for any node you want to run for real. (Lambdas / `partial` / C-callables can't be statically analyzed and safely fall back to native passthrough.)
 
 ### 4. Observability
 
@@ -201,7 +201,7 @@ Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and
 
 **Use it if** you have a multi-step agent with LLM-reasoning nodes, you want those prompts optimized programmatically, and you want schema-validated retries without writing your own catch/re-query logic.
 
-**Reach for something else if** your nodes are purely deterministic/tool/routing (nothing to optimize), or you just want a one-time "port my whole agent to DSPy" rewrite — an LLM-assisted rewrite is simpler for that. dspyer's value is the reusable runtime, not the translation.
+**Reach for something else if** your nodes are purely deterministic/tool/routing (nothing to optimize), or you just want a one-time "port my whole agent to DSPy" rewrite: an LLM-assisted rewrite is simpler for that. dspyer's value is the reusable runtime, not the translation.
 
 ---
 
@@ -212,7 +212,7 @@ Native OpenTelemetry tracing. Point it at Arize Phoenix, Langfuse, or Jaeger and
 | `@self_correcting` | One-line schema-validated retry loop for any `dspy.Module` / `Predict`. |
 | `StatefulNode(..., max_retries=N)` | Per-node retry budget + custom `refine_instructions`. |
 | `use_cot=True` | Injects a `rationale` field for chain-of-thought without polluting your output schema; reasoning surfaces in `result["_metadata"]["rationales"]`. |
-| `ImmutableState.merge(policy=...)` | Reconcile parallel branches — `last_write_wins`, `combine_lists`, or `raise`. |
+| `ImmutableState.merge(policy=...)` | Reconcile parallel branches: `last_write_wins`, `combine_lists`, or `raise`. |
 | `from_langgraph(...)` | Scaffold a LangGraph `StateGraph` into a dspyer graph (hybrid native/LLM). |
 | `save_prompts` / `load_prompts` | Serialize tuned instructions + exemplars to JSON and rehydrate in production. |
 | `DirectLM` | Optional `dspy.BaseLM` adapter that bypasses LiteLLM at runtime with pooled `httpx` connections (header-based auth). For latency-critical paths; standard `dspy.LM` is the default. |

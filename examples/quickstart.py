@@ -1,5 +1,5 @@
 """
-dspyer quickstart — self-correcting, schema-validated LLM output (real model).
+dspyer quickstart: self-correcting, schema-validated LLM output (real model).
 
 A node must answer a question AND cite a source. If the model returns an answer
 without a citation, the Pydantic validator rejects it, dspyer generates corrective
@@ -9,7 +9,7 @@ Run:
     export OPENAI_API_KEY=sk-...        # or set DSPYER_MODEL to any DSPy-supported model
     python examples/quickstart.py
 
-No API key? See examples/run_rag_verifier.py — it runs the same idea fully offline.
+No API key? See examples/run_rag_verifier.py: it runs the same idea fully offline.
 """
 
 import os
