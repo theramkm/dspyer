@@ -62,4 +62,9 @@ plugins:
 
 nav:
   - Introduction: index.md
+  - Getting Started: getting-started.md
+  - State Management: state.md
+  - Decorators & Nodes: decorators.md
+  - Async & Streaming: async-streaming.md
+  - Storage & Observability: storage.md
   - API Reference: api.md

@@ -1319,6 +1319,22 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
         _on_loop_limit: str = "raise",
         **initial_state_kwargs,
     ) -> Union[T, dspy.Prediction]:
+        """
+        Asynchronously executes the state machine workflow.
+
+        Runs predictions in a thread-safe thread pool to avoid blocking the event loop.
+        Validates output fields against schemas and triggers self-correction retry loops
+        on validation failures.
+
+        Args:
+            _max_retries (int): Default maximum correction attempts per node.
+            _max_steps (int): Maximum total nodes traversed before breaking loops.
+            _on_loop_limit (str): Behavior when step limit is hit ('raise' or 'return').
+            **initial_state_kwargs: Initial state dictionary values.
+
+        Returns:
+            Union[T, dspy.Prediction]: Validated Pydantic model or dspy.Prediction result.
+        """
         token = _refinement_steps.set(0)
         rat_token = _rationales.set({})
         try:
@@ -1415,6 +1431,21 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
         _on_loop_limit: str = "raise",
         **initial_state_kwargs,
     ) -> AsyncGenerator[Dict[str, Any], None]:
+        """
+        Asynchronously executes the state machine workflow and streams step events.
+
+        Yields events as they happen (e.g. node_start, node_end, validation_error)
+        enabling frontends or interactive runtimes to track execution progress.
+
+        Args:
+            _max_retries (int): Default maximum correction attempts per node.
+            _max_steps (int): Maximum total nodes traversed before breaking loops.
+            _on_loop_limit (str): Behavior when step limit is hit ('raise' or 'return').
+            **initial_state_kwargs: Initial state dictionary values.
+
+        Yields:
+            AsyncGenerator[Dict[str, Any], None]: Event payloads tracking steps.
+        """
         token = _refinement_steps.set(0)
         rat_token = _rationales.set({})
         queue: asyncio.Queue[Optional[Dict[str, Any]]] = asyncio.Queue()

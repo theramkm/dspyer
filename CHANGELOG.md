@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] - 2026-06-23
+
+### Added
+- **Extensive Getting Started Documentation**: Created [getting-started.md](file:///Users/ram/play/dspyer/docs/getting-started.md) showing offline mock LM testing configurations and citation synthesizer graphs.
+- **Detailed State Management Guide**: Added [state.md](file:///Users/ram/play/dspyer/docs/state.md) to document Copy-on-Write (COW) optimization math models and list branch conflict resolution policies.
+- **Custom Decorator Walkthrough**: Added [decorators.md](file:///Users/ram/play/dspyer/docs/decorators.md) explaining `@self_correcting` wrapper scopes and `@dspyer_node` escape hatches.
+- **Async & Streaming Guide**: Added [async-streaming.md](file:///Users/ram/play/dspyer/docs/async-streaming.md) showing how to leverage `aforward` and `astream` execution pipelines inside ASGI web environments.
+- **Storage & Observability Guide**: Added [storage.md](file:///Users/ram/play/dspyer/docs/storage.md) detailing custom `BaseStorageAdapter` database sinks, validation reports, and flywheel datasets.
+- **Reference Docstrings**: Added comprehensive developer docstrings for async pipelines [aforward](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) and [astream](file:///Users/ram/play/dspyer/dspy_transpiler/compiler.py) in the codebase.
+
 ## [0.3.2] - 2026-06-23
 
 ### Added
