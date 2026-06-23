@@ -869,6 +869,7 @@ class TranspiledAgentProgram(dspy.Module):
 
                     if node_validation_log_path is not None:
                         from dspy_transpiler.utils import log_validation_event
+
                         log_validation_event(
                             node_validation_log_path,
                             node_name=node.name,
@@ -882,7 +883,11 @@ class TranspiledAgentProgram(dspy.Module):
                     span.record_validation_error(validation_err)
                     if isinstance(validation_err, ValidationError):
                         for pydantic_error in validation_err.errors():
-                            loc_str = ".".join(str(x) for x in pydantic_error["loc"]) if pydantic_error.get("loc") else "unknown"
+                            loc_str = (
+                                ".".join(str(x) for x in pydantic_error["loc"])
+                                if pydantic_error.get("loc")
+                                else "unknown"
+                            )
                             all_failed_fields.append(loc_str)
                     else:
                         all_failed_fields.append("validation_error")
@@ -892,6 +897,7 @@ class TranspiledAgentProgram(dspy.Module):
                     if attempt > effective_max_retries:
                         if node_validation_log_path is not None:
                             from dspy_transpiler.utils import log_validation_event
+
                             log_validation_event(
                                 node_validation_log_path,
                                 node_name=node.name,

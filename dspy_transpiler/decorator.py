@@ -200,6 +200,7 @@ def wrap_predictor(
                     )
                 if validation_log_path is not None:
                     from dspy_transpiler.utils import log_validation_event
+
                     log_validation_event(
                         validation_log_path,
                         node_name=target_schema.__name__,
@@ -236,6 +237,7 @@ def wrap_predictor(
                 if attempt >= max_retries:
                     if validation_log_path is not None:
                         from dspy_transpiler.utils import log_validation_event
+
                         log_validation_event(
                             validation_log_path,
                             node_name=target_schema.__name__,
@@ -368,6 +370,7 @@ def self_correcting(
                                 )
                             if validation_log_path is not None:
                                 from dspy_transpiler.utils import log_validation_event
+
                                 log_validation_event(
                                     validation_log_path,
                                     node_name=schema.__name__,
@@ -379,7 +382,11 @@ def self_correcting(
                         except ValidationError as val_err:
                             attempt += 1
                             for err in val_err.errors():
-                                loc_str = ".".join(str(x) for x in err["loc"]) if err.get("loc") else "unknown"
+                                loc_str = (
+                                    ".".join(str(x) for x in err["loc"])
+                                    if err.get("loc")
+                                    else "unknown"
+                                )
                                 all_failed_fields.append(loc_str)
 
                             # Format error message
@@ -403,6 +410,7 @@ def self_correcting(
                             if attempt >= max_retries:
                                 if validation_log_path is not None:
                                     from dspy_transpiler.utils import log_validation_event
+
                                     log_validation_event(
                                         validation_log_path,
                                         node_name=schema.__name__,
