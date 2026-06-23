@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from typing import TypedDict
 
 # Allow direct script execution from subdirectories
@@ -64,6 +65,8 @@ class HeroMockLM(dspy.LM):
         super().__init__(model="hero-mock-model")
 
     def forward(self, prompt=None, messages=None, **kwargs):
+        # Simulate standard LLM generation latency
+        time.sleep(0.6)
         prompt_str = str(prompt or messages)
 
         # 1. Mock response for optimization dataset
@@ -105,6 +108,7 @@ def main():
     print("=========================================================================")
     print("⚡ dspyer: The 60-Second Hero Demo")
     print("=========================================================================")
+    time.sleep(0.8)
 
     # Configure Mock LM
     lm = HeroMockLM()
@@ -112,6 +116,7 @@ def main():
 
     # 1. Build a 3-node LangGraph StateGraph
     print("\n[*] Step 1: Defining a 3-node LangGraph workflow...")
+    time.sleep(1.0)
     builder = StateGraph(State)
     builder.add_node("clean_query", clean_query)
     builder.add_node("ResponseGenerator", lambda state: state)  # Stub function for reasoning
@@ -135,32 +140,41 @@ def main():
 
     # 3. Scaffold and compile using dspyer
     print("\n[*] Step 2: Scaffolding graph topology and compiling to DSPy...")
+    time.sleep(1.2)
     dspyer_graph = from_langgraph(builder, node_mappings=node_mappings)
     program = AgentTranspiler.compile(dspyer_graph)
 
     # Verify deterministic nodes remain untouched passthroughs
     print("\n[+] Verification:")
+    time.sleep(0.5)
     print(
         f"    - Node 'clean_query': Native passthrough? {dspyer_graph.nodes['clean_query'].is_passthrough}"
     )
+    time.sleep(0.5)
     print(
         f"    - Node 'log_completion': Native passthrough? {dspyer_graph.nodes['log_completion'].is_passthrough}"
     )
+    time.sleep(0.5)
     print(
         f"    - Node 'ResponseGenerator': Compiled to DSPy? {hasattr(program, 'predictor_ResponseGenerator')}"
     )
+    time.sleep(1.2)
 
     # 4. Run compilation execution with automatic self-correction retry
     print("\n[*] Step 3: Running transpiled program (fails validation on first pass)...")
+    time.sleep(1.0)
     res = program(query="What is the capital of France?")
 
+    time.sleep(0.8)
     print("\n[+] Self-Correction Execution Output:")
     print(f"    - Response: {res['response']}")
     print(f"    - Citations: {res['citations']}")
     print(f"    - Refinement attempts taken: {res['_metadata']['refinement_steps_taken']}")
+    time.sleep(1.5)
 
     # 5. Optimize prompt using DSPy BootstrapFewShot
     print("\n[*] Step 4: Optimizing node prompts using BootstrapFewShot...")
+    time.sleep(1.0)
     trainset = [
         dspy.Example(
             query="What is the license?",
@@ -182,16 +196,21 @@ def main():
     optimizer = BootstrapFewShot(metric=simple_metric, max_bootstrapped_demos=2)
     optimized_program = optimizer.compile(program, trainset=trainset)
 
+    time.sleep(1.0)
     print("\n[+] Prompt Optimization Completed!")
+    time.sleep(0.5)
     print(
         f"    Original instruction: '{program.predictor_ResponseGenerator.signature.instructions}'"
     )
+    time.sleep(0.5)
     print(
         f"    Optimized instruction: '{optimized_program.predictor_ResponseGenerator.signature.instructions}'"
     )
+    time.sleep(0.5)
     print(
         "    Deterministic nodes (clean_query, log_completion) remained native, untouched Python."
     )
+    time.sleep(0.8)
     print("=========================================================================\n")
 
 
