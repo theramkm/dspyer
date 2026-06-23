@@ -554,3 +554,36 @@ def self_correcting(
             )
 
     return decorator
+
+
+def dspyer_node(
+    *args,
+    input_model: Optional[Type[BaseModel]] = None,
+    output_model: Optional[Type[BaseModel]] = None,
+    is_llm: bool = True,
+    instructions: Optional[str] = None,
+) -> Callable[[Any], Any]:
+    """
+    Decorator to explicitly declare input/output schemas and prompts for a node,
+    bypassing static AST parsing during LangGraph conversion.
+    """
+    # Check if called as @dspyer_node directly
+    if len(args) == 1 and callable(args[0]):
+        func = args[0]
+        func._dspyer_input_model = None
+        func._dspyer_output_model = None
+        func._dspyer_is_llm = is_llm
+        func._dspyer_instructions = None
+        return func
+
+    # Called with parameters: @dspyer_node(input_model=...)
+    pos_input_model = args[0] if len(args) > 0 else None
+
+    def decorator(func: Any) -> Any:
+        func._dspyer_input_model = input_model or pos_input_model
+        func._dspyer_output_model = output_model
+        func._dspyer_is_llm = is_llm
+        func._dspyer_instructions = instructions
+        return func
+
+    return decorator

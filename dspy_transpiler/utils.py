@@ -4,7 +4,47 @@ from typing import Any, Callable, Dict, List, Optional
 
 import dspy
 
-_file_lock = threading.Lock()
+
+class BaseStorageAdapter:
+    """Abstract base class representing a storage sink for logging datasets and validation reports."""
+
+    def append_line(self, target: str, line: str) -> None:
+        raise NotImplementedError
+
+    async def append_line_async(self, target: str, line: str) -> None:
+        raise NotImplementedError
+
+
+class FileStorageAdapter(BaseStorageAdapter):
+    """File storage adapter with thread-safe sync appending and thread-pooled async appending."""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+
+    def append_line(self, target: str, line: str) -> None:
+        with self._lock:
+            with open(target, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+
+    async def append_line_async(self, target: str, line: str) -> None:
+        import asyncio
+
+        await asyncio.to_thread(self.append_line, target, line)
+
+
+_default_storage_adapter: BaseStorageAdapter = FileStorageAdapter()
+
+
+def get_storage_adapter() -> BaseStorageAdapter:
+    """Retrieve the current globally configured storage adapter."""
+    global _default_storage_adapter
+    return _default_storage_adapter
+
+
+def set_storage_adapter(adapter: BaseStorageAdapter) -> None:
+    """Set the globally configured storage adapter."""
+    global _default_storage_adapter
+    _default_storage_adapter = adapter
 
 
 def log_self_correction_example(
@@ -15,7 +55,7 @@ def log_self_correction_example(
 ) -> None:
     """
     Safely merges inputs and outputs, applies redact_hook if provided, and appends
-    the resulting example as a JSON line to dataset_log_path.
+    the resulting example as a JSON line to dataset_log_path using the storage adapter.
     """
     example_dict = {**inputs, **outputs}
     if redact_hook is not None:
@@ -32,12 +72,41 @@ def log_self_correction_example(
     except Exception:
         return
 
-    with _file_lock:
+    try:
+        get_storage_adapter().append_line(dataset_log_path, line)
+    except Exception:
+        pass
+
+
+async def log_self_correction_example_async(
+    dataset_log_path: str,
+    inputs: Dict[str, Any],
+    outputs: Dict[str, Any],
+    redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+) -> None:
+    """
+    Asynchronously merges inputs and outputs, applies redact_hook if provided, and appends
+    the resulting example as a JSON line to dataset_log_path using the storage adapter.
+    """
+    example_dict = {**inputs, **outputs}
+    if redact_hook is not None:
         try:
-            with open(dataset_log_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
+            res = redact_hook(example_dict)
+            if res is None:
+                return
+            example_dict = res
         except Exception:
-            pass
+            return
+
+    try:
+        line = json.dumps(example_dict, ensure_ascii=False)
+    except Exception:
+        return
+
+    try:
+        await get_storage_adapter().append_line_async(dataset_log_path, line)
+    except Exception:
+        pass
 
 
 def load_logged_dataset(
@@ -66,9 +135,6 @@ def load_logged_dataset(
     return examples
 
 
-_validation_lock = threading.Lock()
-
-
 def log_validation_event(
     validation_log_path: str,
     node_name: str,
@@ -77,7 +143,7 @@ def log_validation_event(
     failed_fields: List[str],
 ) -> None:
     """
-    Safely logs a validation event as a JSON line to validation_log_path.
+    Safely logs a validation event as a JSON line to validation_log_path using the storage adapter.
     """
     event = {
         "node_name": node_name,
@@ -90,12 +156,37 @@ def log_validation_event(
     except Exception:
         return
 
-    with _validation_lock:
-        try:
-            with open(validation_log_path, "a", encoding="utf-8") as f:
-                f.write(line + "\n")
-        except Exception:
-            pass
+    try:
+        get_storage_adapter().append_line(validation_log_path, line)
+    except Exception:
+        pass
+
+
+async def log_validation_event_async(
+    validation_log_path: str,
+    node_name: str,
+    success: bool,
+    retries_taken: int,
+    failed_fields: List[str],
+) -> None:
+    """
+    Asynchronously logs a validation event as a JSON line to validation_log_path using the storage adapter.
+    """
+    event = {
+        "node_name": node_name,
+        "success": success,
+        "retries_taken": retries_taken,
+        "failed_fields": failed_fields,
+    }
+    try:
+        line = json.dumps(event, ensure_ascii=False)
+    except Exception:
+        return
+
+    try:
+        await get_storage_adapter().append_line_async(validation_log_path, line)
+    except Exception:
+        pass
 
 
 def generate_validation_report(validation_log_path: str) -> str:

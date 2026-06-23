@@ -279,7 +279,7 @@ trainset = load_logged_dataset(
 
 ## Project Status
 
-Pre-release (`0.3.0`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 66-case test suite. Issues and PRs are welcome.
+Stable release (`0.3.1`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
 
 ## License
 

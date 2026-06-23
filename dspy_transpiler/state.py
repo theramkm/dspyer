@@ -9,75 +9,87 @@ class ImmutableState:
     a new ImmutableState instance without mutating the original.
     """
 
-    def __init__(self, data: Dict[str, Any]):
-        self._data = deepcopy(data)
+    def __init__(self, data: Dict[str, Any], _skip_copy: bool = False):
+        if _skip_copy:
+            self._data = data
+        else:
+            self._data = deepcopy(data)
 
     def apply_patch(self, patch: Dict[str, Any]) -> "ImmutableState":
         """
         Applies a recursive JSON Merge Patch (RFC 7396) and returns
-        a new ImmutableState instance containing the merged state.
+        a new ImmutableState instance containing the merged state using COW optimization.
         """
-        new_data = deepcopy(self._data)
-        self._merge(new_data, patch)
-        return ImmutableState(new_data)
+        new_data = self._merge_cow(self._data, patch)
+        return ImmutableState(new_data, _skip_copy=True)
 
-    def _merge(self, target: Dict[str, Any], patch: Dict[str, Any]) -> None:
+    def _merge_cow(self, target: Dict[str, Any], patch: Dict[str, Any]) -> Dict[str, Any]:
         """
-        In-place recursive merge patch logic.
+        Copy-on-write merge routine. Reuses reference pointers for unchanged keys.
         """
+        new_data = target.copy()
         for key, value in patch.items():
             if value is None:
-                # Null values act as explicit deletions
-                target.pop(key, None)
-            elif isinstance(value, dict) and isinstance(target.get(key), dict):
-                # Recursively merge nested dictionaries
-                self._merge(target[key], value)
+                new_data.pop(key, None)
+            elif isinstance(value, dict) and isinstance(new_data.get(key), dict):
+                new_data[key] = self._merge_cow(new_data[key], value)
             else:
-                # Replace primitives, lists, or mismatched structures entirely
-                target[key] = deepcopy(value)
+                if isinstance(value, (dict, list)):
+                    new_data[key] = deepcopy(value)
+                else:
+                    new_data[key] = value
+        return new_data
 
     def merge(self, other: "ImmutableState", policy: str = "last_write_wins") -> "ImmutableState":
         """
         Merges another state snapshot into this one.
         Supports conflict resolution policies: 'last_write_wins', 'combine_lists', 'raise'.
         """
-        new_data = deepcopy(self._data)
-        self._reconcile(new_data, other.to_dict(), policy)
-        return ImmutableState(new_data)
+        new_data = self._reconcile_cow(self._data, other.to_dict(), policy)
+        return ImmutableState(new_data, _skip_copy=True)
 
-    def _reconcile(self, target: Dict[str, Any], source: Dict[str, Any], policy: str) -> None:
+    def _reconcile_cow(
+        self, target: Dict[str, Any], source: Dict[str, Any], policy: str
+    ) -> Dict[str, Any]:
+        new_data = target.copy()
         for key, val in source.items():
-            if key not in target:
-                target[key] = deepcopy(val)
+            if key not in new_data:
+                if isinstance(val, (dict, list)):
+                    new_data[key] = deepcopy(val)
+                else:
+                    new_data[key] = val
             else:
-                # Key exists in both. Reconcile based on policy
-                target_val = target[key]
+                target_val = new_data[key]
                 if isinstance(target_val, dict) and isinstance(val, dict):
-                    self._reconcile(target_val, val, policy)
+                    new_data[key] = self._reconcile_cow(target_val, val, policy)
                 elif (
                     isinstance(target_val, list)
                     and isinstance(val, list)
                     and policy == "combine_lists"
                 ):
-                    target[key] = target_val + deepcopy(val)
+                    new_data[key] = target_val + deepcopy(val)
                 elif target_val == val:
-                    # Values are identical, no conflict
                     pass
                 else:
-                    # Conflict detected!
                     if policy == "raise":
                         raise ValueError(
                             f"Conflict detected at key '{key}': target value '{target_val}' "
                             f"does not match source value '{val}'."
                         )
                     elif policy == "combine_lists":
-                        # For non-list conflicts under combine_lists, fall back to last_write_wins
-                        target[key] = deepcopy(val)
-                    else:  # last_write_wins
-                        target[key] = deepcopy(val)
+                        if isinstance(val, (dict, list)):
+                            new_data[key] = deepcopy(val)
+                        else:
+                            new_data[key] = val
+                    else:
+                        if isinstance(val, (dict, list)):
+                            new_data[key] = deepcopy(val)
+                        else:
+                            new_data[key] = val
+        return new_data
 
     def to_dict(self) -> Dict[str, Any]:
         """
-        Returns a deep copy of the state data.
+        Returns a deep copy of the state data to protect mutability boundaries.
         """
         return deepcopy(self._data)

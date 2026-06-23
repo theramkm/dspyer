@@ -1,6 +1,7 @@
 import asyncio
 import contextvars
 import importlib.util
+import inspect
 import json
 import logging
 import os
@@ -10,7 +11,20 @@ import time
 import urllib.error
 import urllib.request
 import warnings
-from typing import Any, Callable, Dict, Optional, Union, get_args, get_origin
+from typing import (
+    Any,
+    AsyncGenerator,
+    Callable,
+    Dict,
+    Generic,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+    get_args,
+    get_origin,
+    overload,
+)
 
 import dspy
 from pydantic import BaseModel, Field, ValidationError
@@ -20,6 +34,8 @@ from dspy_transpiler.graph import Graph, StatefulNode
 from dspy_transpiler.signatures import DynamicSignatureBuilder
 from dspy_transpiler.state import ImmutableState
 from dspy_transpiler.telemetry import trace_span
+
+T = TypeVar("T", bound=BaseModel)
 
 logger = logging.getLogger("dspyer")
 HAS_HTTPX = importlib.util.find_spec("httpx") is not None
@@ -606,7 +622,7 @@ class GraphExecutionError(RuntimeError):
         super().__init__(msg)
 
 
-class TranspiledAgentProgram(dspy.Module):
+class TranspiledAgentProgram(dspy.Module, Generic[T]):
     """
     A dynamically compiled, optimizable DSPy Module generated from
     an execution Graph. Supports branching, loops, and self-correction.
@@ -618,6 +634,8 @@ class TranspiledAgentProgram(dspy.Module):
         dataset_log_path: Optional[str] = None,
         redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
         validation_log_path: Optional[str] = None,
+        output_model: Optional[Type[T]] = None,
+        error_formatter: Optional[Callable[[Exception], str]] = None,
     ):
         super().__init__()
         if graph.entry_point is None:
@@ -631,6 +649,8 @@ class TranspiledAgentProgram(dspy.Module):
         self.dataset_log_path = dataset_log_path
         self.redact_hook = redact_hook
         self.validation_log_path = validation_log_path
+        self.output_model = output_model
+        self.error_formatter = error_formatter or format_validation_error
 
         # Validate that no node's input model has fields colliding with reserved execution control keywords
         reserved = {"max_retries", "max_steps", "on_loop_limit"}
@@ -903,7 +923,7 @@ class TranspiledAgentProgram(dspy.Module):
                                 failed_fields=all_failed_fields,
                             )
                         span.set_status("ERROR", str(validation_err))
-                        feedback = format_validation_error(validation_err)
+                        feedback = self.error_formatter(validation_err)
                         raise GraphExecutionError(
                             node_name=node.name,
                             inputs=node_inputs,
@@ -914,7 +934,7 @@ class TranspiledAgentProgram(dspy.Module):
                         ) from validation_err
 
                     # Format feedback and prepare refine inputs
-                    feedback = format_validation_error(validation_err)
+                    feedback = self.error_formatter(validation_err)
                     failed_output_str = json.dumps(raw_outputs)
 
                     # Annotate span with retry context
@@ -1031,10 +1051,536 @@ class TranspiledAgentProgram(dspy.Module):
             final_state["_metadata"] = metadata
             self._last_refinement_steps_taken = self.refinement_steps_taken
             _last_refinement_steps.set(self.refinement_steps_taken)
+            if self.output_model is not None:
+                return self.output_model.model_validate(final_state)
             return dspy.Prediction(**final_state)
         finally:
             _refinement_steps.reset(token)
             _rationales.reset(rat_token)
+
+    async def _aexecute_node(
+        self,
+        node: StatefulNode,
+        state: ImmutableState,
+        max_retries: int,
+        event_callback: Optional[Callable[[Dict[str, Any]], None]] = None,
+    ) -> ImmutableState:
+        """
+        Runs async execution pipeline for a single node.
+        """
+        if getattr(node, "is_passthrough", False) and node.callable is not None:
+            with trace_span(f"node.{node.name}", state.to_dict()) as span:
+                try:
+                    if inspect.iscoroutinefunction(node.callable):
+                        patch = await node.callable(state.to_dict())
+                    else:
+                        patch = await asyncio.to_thread(node.callable, state.to_dict())
+                    if patch is None:
+                        patch = {}
+                    if not isinstance(patch, dict):
+                        raise ValueError(
+                            f"Deterministic node '{node.name}' must return a dictionary patch, got {type(patch)}."
+                        )
+                    state = state.apply_patch(patch)
+                    for k, v in patch.items():
+                        span.set_attribute(f"output.{k}", str(v))
+                    return state
+                except Exception as err:
+                    span.set_status("ERROR", str(err))
+                    raise GraphExecutionError(
+                        node_name=node.name,
+                        inputs=state.to_dict(),
+                        raw_output=None,
+                        error_feedback=str(err),
+                        retries=0,
+                        original_exception=err,
+                    ) from err
+
+        effective_max_retries = node.max_retries if node.max_retries is not None else max_retries
+        predictor = getattr(self, f"predictor_{node.name}")
+        refiner = getattr(self, f"refiner_{node.name}")
+
+        current_state_data = state.to_dict()
+        node_inputs = {}
+        for field_name, field_info in node.input_model.model_fields.items():
+            if field_name in current_state_data:
+                node_inputs[field_name] = current_state_data[field_name]
+            else:
+                if field_info.default is not PydanticUndefined:
+                    node_inputs[field_name] = field_info.default
+                elif field_info.default_factory is not None:
+                    node_inputs[field_name] = field_info.default_factory()  # type: ignore[call-arg]
+                else:
+                    annotation = field_info.annotation
+                    is_nullable = False
+                    if annotation is not None:
+                        if get_origin(annotation) is Union:
+                            is_nullable = type(None) in get_args(annotation)
+                        elif annotation is type(None):
+                            is_nullable = True
+
+                    if is_nullable:
+                        node_inputs[field_name] = None
+                    else:
+                        raise ValueError(
+                            f"Node '{node.name}' expects input '{field_name}', "
+                            f"but it was not found in the workflow state."
+                        )
+
+        node_validation_log_path = (
+            getattr(node, "validation_log_path", None) or self.validation_log_path
+        )
+
+        with trace_span(f"node.{node.name}", node_inputs) as span:
+            try:
+                output_prediction = await asyncio.to_thread(predictor, **node_inputs)
+            except Exception as pred_err:
+                span.set_status("ERROR", str(pred_err))
+                raise GraphExecutionError(
+                    node_name=node.name,
+                    inputs=node_inputs,
+                    raw_output=None,
+                    error_feedback=str(pred_err),
+                    retries=0,
+                    original_exception=pred_err,
+                ) from pred_err
+
+            attempt = 0
+            all_failed_fields: list[str] = []
+            while True:
+                raw_outputs = {}
+                for output_field, field_info in node.output_model.model_fields.items():
+                    has_field = False
+                    val = None
+
+                    if isinstance(output_prediction, dict):
+                        if output_field in output_prediction:
+                            val = output_prediction[output_field]
+                            has_field = True
+                    elif hasattr(output_prediction, "__getitem__"):
+                        try:
+                            val = output_prediction[output_field]
+                            has_field = True
+                        except KeyError:
+                            if hasattr(output_prediction, output_field):
+                                val = getattr(output_prediction, output_field)
+                                has_field = True
+                    else:
+                        if hasattr(output_prediction, output_field):
+                            val = getattr(output_prediction, output_field)
+                            has_field = True
+
+                    if has_field:
+                        if isinstance(val, str):
+                            ann = field_info.annotation
+                            origin = get_origin(ann) or ann
+                            is_collection = isinstance(origin, type) and issubclass(
+                                origin, (dict, list)
+                            )
+                            is_model = isinstance(ann, type) and issubclass(ann, BaseModel)
+                            if is_collection or is_model:
+                                try:
+                                    val = repair_and_parse_json(val)
+                                except Exception:
+                                    pass
+
+                        raw_outputs[output_field] = val
+
+                try:
+                    validated_patch = node.output_model.model_validate(raw_outputs)
+                    if getattr(node, "_is_autogenerated", False):
+                        patch_data = validated_patch.model_dump(mode="json", exclude_unset=True)
+                    else:
+                        patch_data = validated_patch.model_dump(mode="json")
+                    state = state.apply_patch(patch_data)
+
+                    for k, v in validated_patch.model_dump().items():
+                        span.set_attribute(f"output.{k}", str(v))
+
+                    if node.use_cot:
+                        rationale_val = None
+                        if isinstance(output_prediction, dict) and "rationale" in output_prediction:
+                            rationale_val = output_prediction["rationale"]
+                        elif hasattr(output_prediction, "__getitem__"):
+                            try:
+                                rationale_val = output_prediction["rationale"]
+                            except KeyError:
+                                rationale_val = getattr(output_prediction, "rationale", None)
+                        else:
+                            rationale_val = getattr(output_prediction, "rationale", None)
+
+                        if rationale_val is not None:
+                            span.set_attribute("output.rationale", str(rationale_val))
+                            current_rationales = _rationales.get()
+                            updated_rationales = dict(current_rationales)
+                            updated_rationales[node.name] = str(rationale_val)
+                            _rationales.set(updated_rationales)
+
+                    if attempt > 0:
+                        node_log_path = (
+                            getattr(node, "dataset_log_path", None) or self.dataset_log_path
+                        )
+                        node_redact_hook = getattr(node, "redact_hook", None) or self.redact_hook
+                        if node_log_path is not None:
+                            from dspy_transpiler.utils import log_self_correction_example_async
+
+                            await log_self_correction_example_async(
+                                node_log_path,
+                                node_inputs,
+                                validated_patch.model_dump(),
+                                node_redact_hook,
+                            )
+
+                    if node_validation_log_path is not None:
+                        from dspy_transpiler.utils import log_validation_event_async
+
+                        await log_validation_event_async(
+                            node_validation_log_path,
+                            node_name=node.name,
+                            success=True,
+                            retries_taken=attempt,
+                            failed_fields=all_failed_fields,
+                        )
+
+                    break
+                except ValidationError as validation_err:
+                    span.record_validation_error(validation_err)
+                    for pydantic_error in validation_err.errors():
+                        loc_str = (
+                            ".".join(str(x) for x in pydantic_error["loc"])
+                            if pydantic_error.get("loc")
+                            else "unknown"
+                        )
+                        all_failed_fields.append(loc_str)
+                    attempt += 1
+                    _refinement_steps.set(_refinement_steps.get() + 1)
+
+                    feedback = self.error_formatter(validation_err)
+                    if event_callback:
+                        event_callback(
+                            {
+                                "event": "validation_error",
+                                "node": node.name,
+                                "attempt": attempt,
+                                "error": feedback,
+                                "failed_fields": all_failed_fields,
+                            }
+                        )
+
+                    if attempt > effective_max_retries:
+                        if node_validation_log_path is not None:
+                            from dspy_transpiler.utils import log_validation_event_async
+
+                            await log_validation_event_async(
+                                node_validation_log_path,
+                                node_name=node.name,
+                                success=False,
+                                retries_taken=effective_max_retries,
+                                failed_fields=all_failed_fields,
+                            )
+                        span.set_status("ERROR", str(validation_err))
+                        raise GraphExecutionError(
+                            node_name=node.name,
+                            inputs=node_inputs,
+                            raw_output=raw_outputs,
+                            error_feedback=feedback,
+                            retries=effective_max_retries,
+                            original_exception=validation_err,
+                        ) from validation_err
+
+                    failed_output_str = json.dumps(raw_outputs)
+
+                    span.set_attribute(f"retry.{attempt}.error", feedback)
+                    span.set_attribute(f"retry.{attempt}.failed_output", failed_output_str)
+
+                    refine_inputs = {**node_inputs}
+                    refine_inputs["failed_output"] = failed_output_str
+                    refine_inputs["error_feedback"] = feedback
+
+                    try:
+                        output_prediction = await asyncio.to_thread(refiner, **refine_inputs)
+                    except Exception as refine_err:
+                        span.set_status("ERROR", str(refine_err))
+                        raise GraphExecutionError(
+                            node_name=node.name,
+                            inputs=node_inputs,
+                            raw_output=raw_outputs,
+                            error_feedback=str(refine_err),
+                            retries=attempt,
+                            original_exception=refine_err,
+                        ) from refine_err
+        return state
+
+    async def aforward(
+        self,
+        *,
+        _max_retries: int = 2,
+        _max_steps: int = 15,
+        _on_loop_limit: str = "raise",
+        **initial_state_kwargs,
+    ) -> Union[T, dspy.Prediction]:
+        token = _refinement_steps.set(0)
+        rat_token = _rationales.set({})
+        try:
+            max_retries = initial_state_kwargs.pop("max_retries", _max_retries)
+            max_steps = initial_state_kwargs.pop("max_steps", _max_steps)
+            on_loop_limit = initial_state_kwargs.pop("on_loop_limit", _on_loop_limit)
+
+            state = ImmutableState(initial_state_kwargs)
+
+            current_node_name: Optional[str] = self.entry_point
+            step_count = 0
+
+            while current_node_name is not None and current_node_name not in ("__end__", "END"):
+                step_count += 1
+                if step_count > max_steps:
+                    msg = f"Graph execution exceeded max_steps limit of {max_steps}."
+                    logger.warning(msg)
+                    if on_loop_limit == "raise":
+                        raise RuntimeError(msg)
+                    else:
+                        break
+
+                node = self._nodes_map[current_node_name]
+                state = await self._aexecute_node(node, state, max_retries)
+
+                # Determine next step
+                if current_node_name in self.edges:
+                    current_node_name = self.edges[current_node_name]
+                elif current_node_name in self.conditional_edges:
+                    router, path_map = self.conditional_edges[current_node_name]
+                    decision: Any = None
+
+                    if callable(router) and not isinstance(router, StatefulNode):
+                        try:
+                            if inspect.iscoroutinefunction(router):
+                                decision = await router(state.to_dict())
+                            else:
+                                decision = await asyncio.to_thread(router, state.to_dict())
+                        except Exception as router_err:
+                            raise RuntimeError(
+                                f"Python router function failed at node '{current_node_name}': {str(router_err)}"
+                            ) from router_err
+                    else:
+                        state = await self._aexecute_node(router, state, max_retries)
+                        output_fields = list(router.output_model.model_fields.keys())
+                        if len(output_fields) == 1:
+                            decision_field = output_fields[0]
+                        elif "next_step" in output_fields:
+                            decision_field = "next_step"
+                        elif "route" in output_fields:
+                            decision_field = "route"
+                        else:
+                            raise ValueError(
+                                f"Could not determine routing decision from router node '{router.name}' output. "
+                                f"Please design the output model with a single field or a field named 'next_step' / 'route'."
+                            )
+                        decision = state.to_dict().get(decision_field)
+
+                    decision_str = str(decision) if decision is not None else ""
+                    if decision_str in path_map:
+                        current_node_name = path_map[decision_str]
+                    else:
+                        raise ValueError(
+                            f"Router outcome '{decision_str}' at node '{current_node_name}' "
+                            f"is not mapped to any destination in path_map: {list(path_map.keys())}"
+                        )
+                else:
+                    current_node_name = None
+
+            final_state = state.to_dict()
+            metadata: Dict[str, Any] = {
+                "refinement_steps_taken": self.refinement_steps_taken,
+                "step_count": step_count,
+            }
+            rats = _rationales.get()
+            if rats:
+                metadata["rationales"] = rats
+            final_state["_metadata"] = metadata
+            self._last_refinement_steps_taken = self.refinement_steps_taken
+            _last_refinement_steps.set(self.refinement_steps_taken)
+
+            if self.output_model is not None:
+                return self.output_model.model_validate(final_state)
+            return dspy.Prediction(**final_state)
+        finally:
+            _refinement_steps.reset(token)
+            _rationales.reset(rat_token)
+
+    async def astream(
+        self,
+        *,
+        _max_retries: int = 2,
+        _max_steps: int = 15,
+        _on_loop_limit: str = "raise",
+        **initial_state_kwargs,
+    ) -> AsyncGenerator[Dict[str, Any], None]:
+        token = _refinement_steps.set(0)
+        rat_token = _rationales.set({})
+        queue: asyncio.Queue[Optional[Dict[str, Any]]] = asyncio.Queue()
+
+        def event_callback(ev: Optional[Dict[str, Any]]) -> None:
+            queue.put_nowait(ev)
+
+        async def run_workflow():
+            try:
+                max_retries = initial_state_kwargs.pop("max_retries", _max_retries)
+                max_steps = initial_state_kwargs.pop("max_steps", _max_steps)
+                on_loop_limit = initial_state_kwargs.pop("on_loop_limit", _on_loop_limit)
+
+                state = ImmutableState(initial_state_kwargs)
+
+                current_node_name: Optional[str] = self.entry_point
+                step_count = 0
+
+                while current_node_name is not None and current_node_name not in ("__end__", "END"):
+                    step_count += 1
+                    if step_count > max_steps:
+                        msg = f"Graph execution exceeded max_steps limit of {max_steps}."
+                        logger.warning(msg)
+                        event_callback(
+                            {
+                                "event": "step_limit",
+                                "max_steps": max_steps,
+                                "message": msg,
+                            }
+                        )
+                        if on_loop_limit == "raise":
+                            raise RuntimeError(msg)
+                        else:
+                            break
+
+                    node = self._nodes_map[current_node_name]
+
+                    event_callback(
+                        {
+                            "event": "node_start",
+                            "node": node.name,
+                            "inputs": state.to_dict(),
+                        }
+                    )
+
+                    state = await self._aexecute_node(node, state, max_retries, event_callback)
+
+                    event_callback(
+                        {
+                            "event": "node_end",
+                            "node": node.name,
+                            "outputs": state.to_dict(),
+                        }
+                    )
+
+                    # Determine next step
+                    if current_node_name in self.edges:
+                        current_node_name = self.edges[current_node_name]
+                    elif current_node_name in self.conditional_edges:
+                        router, path_map = self.conditional_edges[current_node_name]
+                        decision: Any = None
+
+                        if callable(router) and not isinstance(router, StatefulNode):
+                            try:
+                                if inspect.iscoroutinefunction(router):
+                                    decision = await router(state.to_dict())
+                                else:
+                                    decision = await asyncio.to_thread(router, state.to_dict())
+                            except Exception as router_err:
+                                raise RuntimeError(
+                                    f"Python router function failed at node '{current_node_name}': {str(router_err)}"
+                                ) from router_err
+                        else:
+                            event_callback(
+                                {
+                                    "event": "node_start",
+                                    "node": router.name,
+                                    "inputs": state.to_dict(),
+                                }
+                            )
+                            state = await self._aexecute_node(
+                                router, state, max_retries, event_callback
+                            )
+                            event_callback(
+                                {
+                                    "event": "node_end",
+                                    "node": router.name,
+                                    "outputs": state.to_dict(),
+                                }
+                            )
+                            output_fields = list(router.output_model.model_fields.keys())
+                            if len(output_fields) == 1:
+                                decision_field = output_fields[0]
+                            elif "next_step" in output_fields:
+                                decision_field = "next_step"
+                            elif "route" in output_fields:
+                                decision_field = "route"
+                            else:
+                                raise ValueError(
+                                    f"Could not determine routing decision from router node '{router.name}' output. "
+                                    f"Please design the output model with a single field or a field named 'next_step' / 'route'."
+                                )
+                            decision = state.to_dict().get(decision_field)
+
+                        decision_str = str(decision) if decision is not None else ""
+                        if decision_str in path_map:
+                            current_node_name = path_map[decision_str]
+                        else:
+                            raise ValueError(
+                                f"Router outcome '{decision_str}' at node '{current_node_name}' "
+                                f"is not mapped to any destination in path_map: {list(path_map.keys())}"
+                            )
+                    else:
+                        current_node_name = None
+
+                final_state = state.to_dict()
+                metadata: Dict[str, Any] = {
+                    "refinement_steps_taken": self.refinement_steps_taken,
+                    "step_count": step_count,
+                }
+                rats = _rationales.get()
+                if rats:
+                    metadata["rationales"] = rats
+                final_state["_metadata"] = metadata
+                self._last_refinement_steps_taken = self.refinement_steps_taken
+                _last_refinement_steps.set(self.refinement_steps_taken)
+
+                if self.output_model is not None:
+                    pred = self.output_model.model_validate(final_state)
+                else:
+                    pred = dspy.Prediction(**final_state)
+
+                event_callback(
+                    {
+                        "event": "finished",
+                        "prediction": pred,
+                    }
+                )
+            except Exception as exc:
+                event_callback(
+                    {
+                        "event": "error",
+                        "error": str(exc),
+                    }
+                )
+                raise
+            finally:
+                event_callback(None)
+
+        task = asyncio.create_task(run_workflow())
+
+        try:
+            while True:
+                val = await queue.get()
+                if val is None:
+                    break
+                yield val
+        finally:
+            _refinement_steps.reset(token)
+            _rationales.reset(rat_token)
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
 
     def save_config(self, path: str) -> None:
         """
@@ -1103,18 +1649,44 @@ class TranspiledAgentProgram(dspy.Module):
 class AgentTranspiler:
     """Public interface to transpile state machines into DSPy programs."""
 
+    @overload
     @staticmethod
     def compile(
         graph: Graph,
         dataset_log_path: Optional[str] = None,
         redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
         validation_log_path: Optional[str] = None,
-    ) -> TranspiledAgentProgram:
+        output_model: None = None,
+        error_formatter: Optional[Callable[[Exception], str]] = None,
+    ) -> TranspiledAgentProgram[BaseModel]: ...
+
+    @overload
+    @staticmethod
+    def compile(
+        graph: Graph,
+        dataset_log_path: Optional[str] = None,
+        redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+        validation_log_path: Optional[str] = None,
+        output_model: Type[T] = ...,
+        error_formatter: Optional[Callable[[Exception], str]] = None,
+    ) -> TranspiledAgentProgram[T]: ...
+
+    @staticmethod
+    def compile(
+        graph: Graph,
+        dataset_log_path: Optional[str] = None,
+        redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
+        validation_log_path: Optional[str] = None,
+        output_model: Optional[Type[Any]] = None,
+        error_formatter: Optional[Callable[[Exception], str]] = None,
+    ) -> TranspiledAgentProgram[Any]:
         return TranspiledAgentProgram(
             graph=graph,
             dataset_log_path=dataset_log_path,
             redact_hook=redact_hook,
             validation_log_path=validation_log_path,
+            output_model=output_model,
+            error_formatter=error_formatter,
         )
 
 
