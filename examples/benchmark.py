@@ -141,46 +141,13 @@ class BenchmarkMockLM(dspy.LM):
 
 
 def main():
-    import argparse
-    parser = argparse.ArgumentParser(
-        description="Run the dspyer sentiment benchmark on mock LM or real model."
-    )
-    parser.add_argument(
-        "--provider",
-        default=os.environ.get("DSPYER_PROVIDER"),
-        help="Model provider (e.g. google, anthropic, openai, ollama).",
-    )
-    parser.add_argument(
-        "--model",
-        default=os.environ.get("DSPYER_MODEL"),
-        help="Model name (e.g. gemini-3.5-flash, claude-4.8, gpt-5.5, llama3).",
-    )
-    args = parser.parse_args()
-
     print("=========================================================================")
     print("📊 dspyer Sentiment Benchmarking (Before vs After)")
     print("=========================================================================")
 
-    # Check if we should fallback to Mock LM (zero-config run)
-    has_keys = any(
-        os.environ.get(k)
-        for k in ["OPENAI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY"]
-    )
-
-    if not args.provider or not args.model or not has_keys:
-        print(
-            "[*] Automatically initializing zero-config BenchmarkMockLM (no API keys detected or provider/model unspecified)..."
-        )
-        lm = BenchmarkMockLM()
-        dspy.configure(lm=lm)
-    else:
-        print(f"[*] Initializing model backend: {args.provider}/{args.model}...")
-        try:
-            lm = dspy.LM(f"{args.provider}/{args.model}")
-            dspy.configure(lm=lm)
-        except Exception as e:
-            print(f"Error configuring DSPy model: {e}", file=sys.stderr)
-            sys.exit(1)
+    # Configure LM
+    lm = BenchmarkMockLM()
+    dspy.configure(lm=lm)
 
     # Build StateGraph
     builder = StateGraph(State)
