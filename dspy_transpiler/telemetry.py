@@ -10,6 +10,7 @@ logger = logging.getLogger("dspyer.telemetry")
 # Check if OpenTelemetry is available in the environment
 HAS_OTEL = importlib.util.find_spec("opentelemetry") is not None
 
+otel_tracer: Optional[Any] = None
 if HAS_OTEL:
     try:
         from opentelemetry import trace
@@ -32,7 +33,7 @@ class TelemetrySpan:
         self.trace_id = trace_id
         self.span_id = span_id
         self.start_time = time.time()
-        self.otel_span = None
+        self.otel_span: Optional[Any] = None
 
     def set_status(self, code: str, message: Optional[str] = None) -> None:
         if self.otel_span and HAS_OTEL:

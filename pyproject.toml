@@ -14,6 +14,9 @@ otel = [
     "opentelemetry-api>=1.20.0",
     "opentelemetry-sdk>=1.20.0",
 ]
+langgraph = [
+    "langgraph>=1.0,<2.0",
+]
 
 
 [dependency-groups]
@@ -23,6 +26,7 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.9.0",
     "pytest-cov>=4.1.0",
+    "langgraph>=1.0,<2.0",
 ]
 
 [tool.ruff]

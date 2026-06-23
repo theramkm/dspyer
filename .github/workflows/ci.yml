@@ -41,7 +41,7 @@ jobs:
 
       - name: Run Mypy Type Checking
         if: ${{ matrix.python-version == '3.10' }}
-        run: uv run mypy dspy_transpiler tests
+        run: uv pip install .[otel] && uv run mypy dspy_transpiler tests
 
       - name: Run Tests
         run: uv run pytest

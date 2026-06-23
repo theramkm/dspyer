@@ -352,26 +352,49 @@ dspy.configure(lm=lm)
 
 ## 🔄 Automated LangGraph Converter (`from_langgraph`)
 
-`dspyer` provides a native converter to parse an existing LangGraph `StateGraph` or `CompiledStateGraph` structure directly into a `dspyer.Graph`:
+Instead of rewriting your state machine by hand, `dspyer` provides a native topology converter to translate a LangGraph StateGraph topology into an optimizable `dspyer` program.
+
+For a runnable, optimizable conversion, you should map your nodes explicitly using `node_mappings` with narrow input/output Pydantic schemas. This ensures your nodes receive only the context they need and do not wipe out other state fields:
 
 ```python
+from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, START, END
 from dspy_transpiler import from_langgraph, AgentTranspiler
+from dspy_transpiler.graph import StatefulNode
 
 # 1. Define your standard LangGraph StateGraph
-builder = StateGraph(MyStateSchema)
-builder.add_node("AgentNode", agent_function)  # Node docstring serves as instructions
-builder.add_node("ToolNode", tool_function)
-builder.add_edge(START, "AgentNode")
-builder.add_conditional_edges("AgentNode", router, {"call_tool": "ToolNode", "end": END})
+builder = StateGraph(AgentState)
+builder.add_node("Clean", clean_node)
+builder.add_node("Solve", solve_node)
+builder.add_edge(START, "Clean")
+builder.add_edge("Clean", "Solve")
+builder.add_edge("Solve", END)
 
-# 2. Convert it dynamically
-# Auto-generated nodes inherit schema boundaries from MyStateSchema
-dspyer_graph = from_langgraph(builder)
+# 2. Map nodes with explicit, narrow schemas
+class CleanInput(BaseModel):
+    question: str = Field(description="Raw user query")
 
-# 3. Compile it to an optimizable DSPy Module!
-program = AgentTranspiler.compile(dspyer_graph)
+class CleanOutput(BaseModel):
+    cleaned: str = Field(description="Normalized query text")
+
+class SolveInput(BaseModel):
+    cleaned: str = Field(description="Normalized query text")
+
+class SolveOutput(BaseModel):
+    answer: str = Field(description="Final answer text")
+
+node_mappings = {
+    "Clean": StatefulNode("Clean", CleanInput, CleanOutput, instructions="Clean query"),
+    "Solve": StatefulNode("Solve", SolveInput, SolveOutput, instructions="Answer query"),
+}
+
+# 3. Convert dynamically, attach schemas, and compile to a dspy.Module!
+graph = from_langgraph(builder, node_mappings=node_mappings)
+program = AgentTranspiler.compile(graph)
 ```
+
+> [!NOTE]
+> **Scaffold Mode**: If you call `from_langgraph(builder)` without providing `node_mappings`, it converts only the **graph topology** (entry points, edges, branches). Auto-generated nodes will use the functions' docstrings as instructions and a permissive copy of the state schema for inputs and outputs. While this acts as a structural scaffold that runs without immediately crashing, it does **not** preserve original function logic. Real execution requires defining explicit `node_mappings`.
 
 ---
 
