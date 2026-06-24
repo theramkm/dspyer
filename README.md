@@ -143,14 +143,15 @@ class SolverOutput(BaseModel):
     answer: str
     steps: list[str]
 
+# Both synchronous (def) and asynchronous (async def) functions are fully supported!
 @self_correcting(max_retries=3)
-def solve(question: str) -> SolverOutput:
+async def solve(question: str) -> SolverOutput:
     """Answer the question and outline the logic steps."""
     # Body is intentionally empty; dspyer generates the call from the signature
     pass
 
-# Returns a SolverOutput instance
-result = solve(question="What is the capital of France?")
+# Await the call naturally in async environments:
+result = await solve(question="What is the capital of France?")
 ```
 
 You can also decorate standard `dspy.Module` classes to automatically wrap nested predictors:

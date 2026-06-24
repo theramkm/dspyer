@@ -30,6 +30,31 @@ result = generate_python_code(task="Write a binary search algorithm.")
 print(result.code)
 ```
 
+### Async function support
+
+The `@self_correcting` decorator natively supports both synchronous (`def`) and asynchronous (`async def`) functions. When wrapping an `async def` function, it returns a proper asynchronous coroutine function, allowing you to use `await` naturally.
+
+Under the hood, it executes the DSPy predictor inside a separate thread pool using standard `asyncio.to_thread` to ensure that the event loop is never blocked, making it fully compatible with production async frameworks like FastAPI:
+
+```python
+from dspyer import self_correcting
+from pydantic import BaseModel
+
+class Translation(BaseModel):
+    translated_text: str
+    detected_language: str
+
+@self_correcting(max_retries=3)
+async def translate_text(text: str, target_lang: str) -> Translation:
+    """Translate the input text into the target language."""
+    pass
+
+# Await the coroutine naturally in async contexts
+result = await translate_text(text="Bonjour tout le monde", target_lang="English")
+print(result.translated_text)  # "Hello everyone"
+```
+```
+
 ### Decorating custom `dspy.Module` classes
 
 When applied to a class, `@self_correcting` automatically walks all child attributes during `__init__` and wraps any `dspy.Predict` or `dspy.COTS` instances:
