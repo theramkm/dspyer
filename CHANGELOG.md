@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.5] - 2026-06-24
+
+### Added
+- **First-Class Async Decorator Support**: Added native support for asynchronous (`async def`) functions to the `@self_correcting` decorator. It returns a proper coroutine and executes the underlying DSPy predictor in a separate thread pool using `asyncio.to_thread` to prevent event loop blockages, making it fully production-ready for ASGI web frameworks (like FastAPI).
+- **Automated Fenced Snippet Verifier**: Developed [scripts/verify_doc_snippets.py](https://github.com/theramkm/dspyer/blob/main/scripts/verify_doc_snippets.py) to extract, compile, and execute Python code blocks in `README.md` and `docs/getting-started.md` under mock conditions, preventing documentation examples from rotting.
+- **Strict Quality Gates in CI/CD**: Integrated the document snippets verifier and strict MkDocs builds (`--strict` flag) directly into the main PR/push CI workflow (`ci.yml`) and pre-release validation gates (`run_release_check.sh`), catching any documentation regressions immediately on every commit.
+- **Documentation Badge**: Added a high-visibility, custom documentation badge at the top of the repository `README.md` linking directly to the published GitHub Pages site.
+- **Clear Import Guards for Extras**: Added helpful import guards using `importlib.util.find_spec` in `examples/benchmark.py` and `examples/optimize_compiled_graph.py` to print clear, user-friendly instructions to install `dspyer[langgraph]` instead of throwing raw tracebacks on base package installations.
+
+### Changed
+- **Curated Public Namespace Re-expansion**: Re-expanded `dspyer/__init__.py` root exports to include all major user-facing classes (`Graph`, `StatefulNode`, `ImmutableState`, `DirectLM`, `DirectClient`, `MockCompletionResult`, and various storage adapters) to resolve import errors in the getting-started tutorial.
+- **Absolute Link Purification**: Converted all relative source code references (e.g., `../dspyer/compiler.py` pointing outside the docs folder) to absolute GitHub blob URLs, resolving 404 errors on the published Pages site.
+- **Provider-Agnostic Quickstart**: Redesigned `examples/quickstart.py` to be completely provider-neutral by dropping the hardcoded OpenAI API key check, allowing it to run out-of-the-box with local Ollama, Google Gemini, Anthropic Claude, or OpenAI.
+- **Colab Notebook Setup**: Updated the Colab playground notebook (`notebooks/dspyer_playground.ipynb`) to install from the official PyPI release instead of a slow, pre-release Git URL.
+
+### Fixed
+- **Homepage HTML Rendering Bug**: Resolved the Python-Markdown parsing bug on the docs homepage by enabling the `md_in_html` extension in `mkdocs.yml` and adding `markdown="1"` to the README's centered `div` container.
+- **MkDocs CLI Build Error**: Resolved the docs deployment workflow failure by updating `docs.yml` to run using the correct `docs` dependency group containing the `mkdocs` packages.
+- **Griffe Signature Warnings**: Resolved strict documentation build warnings by adding proper type annotations (`**initial_state_kwargs: Any`) to the compiler's `forward`, `aforward`, and `astream` methods.
+
 ## [0.3.4] - 2026-06-23
 
 ### Changed

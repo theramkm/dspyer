@@ -1,6 +1,6 @@
 [project]
 name = "dspyer"
-version = "0.3.4"
+version = "0.3.5"
 description = "Reliable, optimizable LLM steps with zero DSPy boilerplate"
 readme = "README.md"
 requires-python = ">=3.10"

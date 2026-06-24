@@ -13,7 +13,7 @@ from dspyer.utils import (
     set_storage_adapter,
 )
 
-__version__ = "0.3.4"
+__version__ = "0.3.5"
 
 __all__ = [
     "AgentTranspiler",
