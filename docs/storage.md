@@ -6,11 +6,11 @@
 
 ## 1. Pluggable Storage Adapters
 
-To prevent performance blockages under concurrent LLM calls, logging writes are delegated to a storage adapter interface. By default, `dspyer` uses [FileStorageAdapter](../dspyer/utils.py) which appends lines to local files asynchronously in thread pools using `asyncio.to_thread`.
+To prevent performance blockages under concurrent LLM calls, logging writes are delegated to a storage adapter interface. By default, `dspyer` uses [FileStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py) which appends lines to local files asynchronously in thread pools using `asyncio.to_thread`.
 
 ### Creating a Custom Storage Adapter
 
-You can redirect logs to external databases (e.g. SQLite, PostgreSQL, or vector databases) by subclassing the [BaseStorageAdapter](../dspyer/utils.py) and registering it:
+You can redirect logs to external databases (e.g. SQLite, PostgreSQL, or vector databases) by subclassing the [BaseStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py) and registering it:
 
 ```python
 from dspyer.utils import BaseStorageAdapter, set_storage_adapter

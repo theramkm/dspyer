@@ -51,7 +51,7 @@ class PythonCoder(dspy.Module):
 
 When compiling an entire graph structure (e.g. from an existing LangGraph workflow), `dspyer` statically analyzes function source codes to extract input accesses and return variables. 
 
-For complex functions with dynamic logic or nested mappings, this AST parser can become brittle. The [@dspyer_node](../dspyer/decorator.py) decorator acts as a developer escape hatch to explicitly define node interfaces and bypass AST analysis completely:
+For complex functions with dynamic logic or nested mappings, this AST parser can become brittle. The [@dspyer_node](https://github.com/theramkm/dspyer/blob/main/dspyer/decorator.py) decorator acts as a developer escape hatch to explicitly define node interfaces and bypass AST analysis completely:
 
 ```python
 from dspyer import dspyer_node

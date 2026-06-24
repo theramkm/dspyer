@@ -267,7 +267,7 @@ trainset = load_logged_dataset(
 
 ### 6. Escape Hatch Node Decorator (`@dspyer_node`)
 
-Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](dspyer/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
+Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](https://github.com/theramkm/dspyer/blob/main/dspyer/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
 
 ```python
 from dspyer import dspyer_node
@@ -291,7 +291,7 @@ def extract_entities_node(state):
 
 ### 7. Async & Streaming Pipelines
 
-For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](dspyer/compiler.py) or stream intermediate events via [astream](dspyer/compiler.py):
+For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py) or stream intermediate events via [astream](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py):
 
 ```python
 program = AgentTranspiler.compile(graph, output_model=ExtractorOutput)
@@ -307,7 +307,7 @@ async for event in program.astream(query="Alice and Bob went to Paris"):
 
 ### 8. Pluggable Storage Adapters
 
-Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](dspyer/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](dspyer/utils.py):
+Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py):
 
 ```python
 from dspyer.utils import BaseStorageAdapter, set_storage_adapter

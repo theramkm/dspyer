@@ -9,25 +9,29 @@ echo "          dspyer Pre-Release Validation Pipeline          "
 echo "=========================================================="
 
 # 1. Run local link checker
-echo -e "\n[1/5] Running link verifier..."
+echo -e "\n[1/6] Running link verifier..."
 python3 scripts/verify_links.py
 
 # 2. Run local code quality gates
-echo -e "\n[2/5] Running style & type checks..."
+echo -e "\n[2/6] Running style & type checks..."
 uv run ruff check .
 uv run ruff format --check .
 uv run mypy dspyer tests examples scripts
 
 # 3. Run full unit test suite
-echo -e "\n[3/5] Running pytest suite..."
+echo -e "\n[3/6] Running pytest suite..."
 uv run pytest
 
-# 4. Build documentation site
-echo -e "\n[4/5] Testing documentation build..."
-uv run mkdocs build
+# 4. Run documentation code snippets check
+echo -e "\n[4/6] Running documentation code snippets check..."
+uv run python3 scripts/verify_doc_snippets.py
 
-# 5. Build package and run isolated smoke test
-echo -e "\n[5/5] Building package and running isolated smoke test..."
+# 5. Build documentation site
+echo -e "\n[5/6] Testing documentation build..."
+uv run mkdocs build --strict
+
+# 6. Build package and run isolated smoke test
+echo -e "\n[6/6] Building package and running isolated smoke test..."
 
 # Clean previous builds
 rm -rf dist/ build/ *.egg-info/

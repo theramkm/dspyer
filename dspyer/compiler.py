@@ -966,7 +966,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
         _max_retries: int = 2,
         _max_steps: int = 15,
         _on_loop_limit: str = "raise",
-        **initial_state_kwargs,
+        **initial_state_kwargs: Any,
     ) -> dspy.Prediction:
         token = _refinement_steps.set(0)
         rat_token = _rationales.set({})
@@ -1317,7 +1317,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
         _max_retries: int = 2,
         _max_steps: int = 15,
         _on_loop_limit: str = "raise",
-        **initial_state_kwargs,
+        **initial_state_kwargs: Any,
     ) -> Union[T, dspy.Prediction]:
         """
         Asynchronously executes the state machine workflow.
@@ -1429,7 +1429,7 @@ class TranspiledAgentProgram(dspy.Module, Generic[T]):
         _max_retries: int = 2,
         _max_steps: int = 15,
         _on_loop_limit: str = "raise",
-        **initial_state_kwargs,
+        **initial_state_kwargs: Any,
     ) -> AsyncGenerator[Dict[str, Any], None]:
         """
         Asynchronously executes the state machine workflow and streams step events.
