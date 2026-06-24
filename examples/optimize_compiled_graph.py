@@ -6,6 +6,16 @@ from typing import Any, TypedDict
 # Allow direct script execution from subdirectories
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
+import importlib.util
+
+if importlib.util.find_spec("langgraph") is None:
+    print(
+        "Error: This example requires the 'langgraph' library.\n"
+        "Please install it using: pip install 'dspyer[langgraph]'",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 import dspy
 from dspy.teleprompt import BootstrapFewShot
 from langgraph.graph import END, START, StateGraph

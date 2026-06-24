@@ -69,8 +69,7 @@ This runs completely offline using a mock model backend. The node contract requi
 ```python
 import dspy
 from pydantic import BaseModel, Field, field_validator
-from dspyer.graph import Graph, StatefulNode
-from dspyer.compiler import AgentTranspiler, MockCompletionResult
+from dspyer import AgentTranspiler, Graph, MockCompletionResult, StatefulNode
 
 # 1. Describe the schema contract you want the LLM to honor
 class Query(BaseModel):
@@ -222,7 +221,7 @@ program = AgentTranspiler.compile(graph, validation_log_path="logs/validation.js
 Generate a summary report detailing per-node error rates and failing Pydantic fields:
 
 ```python
-from dspyer.utils import generate_validation_report
+from dspyer import generate_validation_report
 
 print(generate_validation_report("logs/validation.jsonl"))
 ```
@@ -257,7 +256,7 @@ program = AgentTranspiler.compile(graph, dataset_log_path="logs/flywheel.jsonl")
 Then, load the logged executions using `load_logged_dataset` to dynamically generate a clean training dataset of `dspy.Example` objects:
 
 ```python
-from dspyer.utils import load_logged_dataset
+from dspyer import load_logged_dataset
 
 # We must specify which keys act as model inputs
 trainset = load_logged_dataset(
@@ -311,7 +310,7 @@ async for event in program.astream(query="Alice and Bob went to Paris"):
 Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py):
 
 ```python
-from dspyer.utils import BaseStorageAdapter, set_storage_adapter
+from dspyer import BaseStorageAdapter, set_storage_adapter
 
 class CustomDatabaseAdapter(BaseStorageAdapter):
     def append_line(self, target: str, line: str) -> None:
