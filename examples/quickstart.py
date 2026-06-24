@@ -31,7 +31,7 @@ from dspyer.graph import Graph, StatefulNode
 
 # 1. The contract you want the LLM to honor.
 class Query(BaseModel):
-    query: str
+    query: str = Field(description="The search query or question to answer")
 
 
 class RAGResponse(BaseModel):
