@@ -5,8 +5,16 @@ A node must answer a question AND cite a source. If the model returns an answer
 without a citation, the Pydantic validator rejects it, dspyer generates corrective
 feedback, and re-queries the model until it conforms (or hits `max_retries`).
 
-Run:
-    export OPENAI_API_KEY=sk-...        # or set DSPYER_MODEL to any DSPy-supported model
+Run (choose your model provider):
+    # 1. Local Ollama (zero-setup, no API key needed):
+    export DSPYER_MODEL="ollama_chat/llama3.2"
+
+    # 2. Or Google Gemini:
+    export DSPYER_MODEL="gemini/gemini-2.0-flash" GEMINI_API_KEY="your-key"
+
+    # 3. Or OpenAI:
+    export DSPYER_MODEL="openai/gpt-4o-mini" OPENAI_API_KEY="your-key"
+
     python examples/quickstart.py
 
 No API key? See examples/run_rag_verifier.py: it runs the same idea fully offline.
@@ -54,11 +62,25 @@ program = AgentTranspiler.compile(graph)  # a standard, optimizable dspy.Module
 
 
 def main() -> None:
-    model = os.environ.get("DSPYER_MODEL", "openai/gpt-4o-mini")
-    if "OPENAI_API_KEY" not in os.environ and model.startswith("openai/"):
+    model = os.environ.get("DSPYER_MODEL")
+    if not model:
         raise SystemExit(
-            "Set OPENAI_API_KEY (or DSPYER_MODEL to another provider) to run this demo.\n"
-            "For an offline version, run: python examples/run_rag_verifier.py"
+            "Error: DSPYER_MODEL environment variable is not set.\n\n"
+            "Pick any provider — dspyer is provider-agnostic (uses DSPy/LiteLLM under the hood):\n"
+            "  # 1. Local Ollama (zero-setup, no API key needed, no signup):\n"
+            '  export DSPYER_MODEL="ollama_chat/llama3.2"\n'
+            "  python examples/quickstart.py\n\n"
+            "  # 2. Google Gemini:\n"
+            '  export DSPYER_MODEL="gemini/gemini-2.0-flash" GEMINI_API_KEY="..."\n'
+            "  python examples/quickstart.py\n\n"
+            "  # 3. Anthropic Claude:\n"
+            '  export DSPYER_MODEL="anthropic/claude-3-5-sonnet-latest" ANTHROPIC_API_KEY="..."\n'
+            "  python examples/quickstart.py\n\n"
+            "  # 4. OpenAI GPT:\n"
+            '  export DSPYER_MODEL="openai/gpt-4o-mini" OPENAI_API_KEY="..."\n'
+            "  python examples/quickstart.py\n\n"
+            "For a completely offline test run (no credentials or setup at all), try:\n"
+            "  python examples/run_rag_verifier.py"
         )
 
     dspy.configure(lm=dspy.LM(model))
