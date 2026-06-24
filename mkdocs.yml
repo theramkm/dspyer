@@ -1,5 +1,5 @@
 site_name: dspyer
-site_description: A transpiler from stateful imperative workflows to declarative DSPy programs
+site_description: "Reliable, optimizable LLM steps with zero DSPy boilerplate: typed outputs, automatic self-correction, and one-call prompt tuning."
 site_author: theramkm
 site_url: https://theramkm.github.io/dspyer/
 
@@ -46,6 +46,7 @@ markdown_extensions:
       alternate_style: true
   - admonition
   - pymdownx.details
+  - md_in_html
 
 plugins:
   - search
