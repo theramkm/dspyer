@@ -355,3 +355,41 @@ def test_function_decorator_errors():
         @self_correcting(max_retries=2)
         def step_invalid_return(x: str) -> str:
             raise NotImplementedError()
+
+
+@pytest.mark.asyncio
+async def test_async_function_decorator(monkeypatch):
+    class AsyncOutput(BaseModel):
+        answer: str
+        confidence: float
+
+    class MockPrediction:
+        def __init__(self):
+            self.answer = "Rome"
+            self.confidence = 0.9
+
+        def items(self):
+            return [("answer", self.answer), ("confidence", self.confidence)]
+
+        def __getitem__(self, key):
+            return getattr(self, key)
+
+    called = 0
+
+    def mock_predict_forward(*args, **kwargs):
+        nonlocal called
+        called += 1
+        return MockPrediction()
+
+    monkeypatch.setattr(dspy.Predict, "forward", mock_predict_forward)
+
+    @self_correcting(max_retries=2)
+    async def my_async_step(question: str) -> AsyncOutput:
+        """Find capital of Italy."""
+        raise NotImplementedError()
+
+    res = await my_async_step(question="What is the capital of Italy?")
+    assert called == 1
+    assert isinstance(res, AsyncOutput)
+    assert res.answer == "Rome"
+    assert res.confidence == 0.9

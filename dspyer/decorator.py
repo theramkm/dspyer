@@ -536,6 +536,22 @@ def self_correcting(
                 validation_log_path,
             )
 
+            if inspect.iscoroutinefunction(target):
+
+                @functools.wraps(target)
+                async def async_wrapper(*args, **kwargs):
+                    bound = sig.bind(*args, **kwargs)
+                    bound.apply_defaults()
+                    import asyncio
+
+                    # Run the self-correcting predictor in a thread to avoid blocking the event loop
+                    prediction = await asyncio.to_thread(wrapped_predictor, **bound.arguments)
+                    # Parse and validate returned outputs back into target BaseModel
+                    parsed, _ = parse_and_validate(prediction, target_schema, validator)
+                    return parsed
+
+                return async_wrapper
+
             @functools.wraps(target)
             def wrapper(*args, **kwargs):
                 bound = sig.bind(*args, **kwargs)
