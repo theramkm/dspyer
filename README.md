@@ -1,8 +1,8 @@
-<div align="center" markdown="1">
+<div align="center">
 
 # ⚡ dspyer
 
-**Reliable, optimizable LLM steps with zero DSPy boilerplate: typed outputs, automatic self-correction, and one-call prompt tuning.**
+**Reliable, optimizable LLM steps with zero boilerplate.** Typed outputs, automatic self-correction, and one-call prompt tuning.
 
 [![CI Build](https://github.com/theramkm/dspyer/actions/workflows/ci.yml/badge.svg)](https://github.com/theramkm/dspyer/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square&logo=github)](https://theramkm.github.io/dspyer/)
@@ -17,146 +17,105 @@
 
 ---
 
-## Why dspyer?
+## The problem
 
-If you are building production agents with LangChain, LangGraph, or custom LLM API loops, you face three primary challenges:
-1. **Prompt Decay**: When you upgrade models (e.g., from GPT-4o to Claude 3.5 Sonnet), your carefully engineered prompt strings fail. They need manual, tedious re-tuning.
-2. **Brittle Validations**: You write verbose `try/except` loops and custom logic to catch malformed JSON and missing fields from the LLM.
-3. **No Systematic Tuning**: There is no simple way to optimize prompts programmatically or automatically select the best few-shot exemplars for your specific tasks.
+Every LLM call in a real agent ends up wrapped in the same defensive code: parse the JSON, catch the missing field, re-prompt, and re-tune the prompt by hand every time you swap models. Two things make that painful:
 
-**Stanford DSPy** solves this by treating prompts as *parameters* that can be compiled and optimized against a dataset. However, adopting DSPy directly requires learning a complex new syntax (Signatures, Predictors, Modules) and rewriting your entire codebase.
+- **Validation is manual.** You write `try/except` and retry loops to catch malformed JSON and missing fields, on every call.
+- **Prompts decay.** Move from one model to another and your hand-tuned prompt quietly stops working. There's no systematic way to re-tune it from data.
 
-**dspyer** acts as an ergonomic bridge: it transpiles standard Python functions, Pydantic schemas, and agent graphs into optimized `dspy.Module` instances under the hood, allowing you to drop them straight back into your existing orchestrator. You write standard, PEP 484 type-hinted Python functions; `dspyer` compiles them into optimizable `dspy.Module` objects you can hand to any DSPy teleprompter.
+[Stanford DSPy](https://github.com/stanfordnlp/dspy) fixes the second problem properly: it treats prompts as parameters you optimize against a metric, instead of strings you edit by hand. But using DSPy directly means learning Signatures, Predictors, and Modules, and restructuring your code around them.
 
----
+**dspyer is a thin layer that gets you both without the rewrite.** You write a normal, type-hinted Python function. dspyer enforces the output schema, self-correcting when the model gets it wrong, and compiles the step to a standard `dspy.Module` so you can hand it to any DSPy optimizer and drop it straight back into your existing LangGraph or agent loop.
 
-## Key Benefits
-
-* **No vendor lock-in**: Compiles to a standard `dspy.Module`; use any DSPy optimizer and `dspy.save`/`load`.
-* **Self-correction loops**: Failed Pydantic validation auto-generates feedback and re-queries the model until it conforms.
-* **Telemetry and validation reports**: OpenTelemetry spans plus per-node failure summaries.
-* **Dataset flywheel**: Successful self-corrections are logged as input/output pairs you can replay as a trainset.
-* **`DirectLM` runtime**: Bypasses LiteLLM with persistent pooled HTTP connections.
-
-Each is shown with runnable code under [Core Capabilities](#core-capabilities).
+> **Honest scope:** dspyer does not reinvent optimization. The optimizer is DSPy's. dspyer's job is the runtime around it, schema-validated self-correction, observable retries, and keeping a real agent graph optimizable with far less boilerplate. If you have a single simple call and won't optimize it, you may not need dspyer at all, and that's fine.
 
 ---
 
 ## Install
 
-Install standard releases directly from PyPI:
-
 ```bash
 pip install dspyer
-# or using uv:
-uv add dspyer
+# or:  uv add dspyer
 ```
 
-Alternatively, install the latest pre-release directly from GitHub:
+Latest pre-release from source:
 
 ```bash
 pip install git+https://github.com/theramkm/dspyer.git
-# or using uv:
-uv add git+https://github.com/theramkm/dspyer.git
 ```
 
 ---
 
-## Quickstart: Self-Correction in 30 Seconds (No API Key)
+## Quickstart: self-correction in 30 seconds (no API key)
 
-This runs completely offline using a mock model backend. The node contract requires an answer with at least one citation. The mock "forgets" the citation on the first try, fails validation, receives the correction feedback, and successfully repairs itself.
+The smallest possible win. Decorate a normal typed function: the parameters become inputs, the docstring becomes the instructions, and the return type is the schema dspyer enforces. The mock model below "forgets" to cite a source on its first try, fails validation, and repairs itself, all offline.
 
 ```python
 import dspy
 from pydantic import BaseModel, Field, field_validator
-from dspyer import AgentTranspiler, Graph, MockCompletionResult, StatefulNode
+from dspyer import self_correcting, MockCompletionResult
 
-# 1. Describe the schema contract you want the LLM to honor
-class Query(BaseModel):
-    query: str
-
-class RAGResponse(BaseModel):
-    answer: str = Field(description="Answer referencing the sources")
-    citations: list[str] = Field(description="Sources cited, e.g. ['doc_1']")
+# 1. Your output contract. The validator is the reliability guarantee.
+class Answer(BaseModel):
+    text: str
+    citations: list[str] = Field(description="Sources, e.g. ['doc_1']")
 
     @field_validator("citations")
     @classmethod
     def must_cite(cls, v):
-        if not v:  # Ensure we cite at least one source
+        if not v:
             raise ValueError("Answer must cite at least one source.")
         return v
 
-# 2. Define an optimizable, self-correcting node
-node = StatefulNode(
-    "Synthesizer", Query, RAGResponse,
-    instructions="Answer the query and cite sources.",
-    max_retries=3,
-)
-graph = Graph()
-graph.add_node(node)
-graph.set_entry_point("Synthesizer")
-program = AgentTranspiler.compile(graph)
+# 2. Decorate a plain function. No DSPy syntax, no try/except.
+@self_correcting(schema=Answer, max_retries=3)
+def answer(question: str) -> Answer:
+    """Answer the question and cite your sources."""
 
-# 3. Offline mock: configuration and run
-# (Hiding MockLM details for readability; click below to expand)
-```
-
-<details>
-<summary>Click to view MockLM configuration (for offline testing)</summary>
-
-```python
+# 3. Offline mock backend: returns an uncited answer first, then a cited one.
 class MockLM(dspy.LM):
     def __init__(self): super().__init__(model="mock")
     def forward(self, prompt=None, messages=None, **kw):
         saw_feedback = "feedback" in str(prompt or messages)
-        good = '{"answer": "Apache-2.0 [doc_1].", "citations": ["doc_1"]}'
-        bad  = '{"answer": "Apache-2.0.", "citations": []}'
+        good = '{"text": "Apache-2.0 [doc_1].", "citations": ["doc_1"]}'
+        bad  = '{"text": "Apache-2.0.",          "citations": []}'
         return MockCompletionResult(good if saw_feedback else bad, "mock")
 
 dspy.configure(lm=MockLM())
-```
-</details>
 
-```python
-r = program(query="What license is dspyer under?")
-
-print("Answer:   ", r.answer)                                   # Apache-2.0 [doc_1].
-print("Citations:", r.citations)                                # ['doc_1']
-print("Self-correction loops:", r["_metadata"]["refinement_steps_taken"])  # 1
+result = answer(question="What license is dspyer under?")
+print(result.text)       # Apache-2.0 [doc_1].
+print(result.citations)  # ['doc_1']
 ```
 
-*   **Live Run**: Run `python examples/quickstart.py` to run this against a live provider (OpenAI, Gemini, Ollama, Anthropic).
-*   **Offline Example**: Try `python examples/run_rag_verifier.py` to test detailed verification logic.
+That's the whole feature in one decorator: a typed result you can trust, with the retry-and-repair loop handled for you. To watch it happen, set `DSPYER_TRACE=1` (see [Observable self-correction](#observable-self-correction)).
+
+To run the same thing against a real provider (OpenAI, Gemini, Anthropic, or a local Ollama model), see [`examples/quickstart.py`](https://github.com/theramkm/dspyer/blob/main/examples/quickstart.py).
 
 ---
 
-## Core Capabilities
+## Core capabilities
 
-### 1. Zero-Boilerplate Decorator
-Wrap any plain typed Python function. The parameters map to inputs, the docstring acts as instructions, and the return annotation defines the schema:
+### 1. The decorator: sync, async, and class forms
+
+The decorator works on async functions and on `dspy.Module` classes too.
 
 ```python
-from dspyer import self_correcting
-from pydantic import BaseModel
-
 class SolverOutput(BaseModel):
     answer: str
     steps: list[str]
 
-# Both synchronous (def) and asynchronous (async def) functions are fully supported!
+# async is fully supported and non-blocking
 @self_correcting(max_retries=3)
 async def solve(question: str) -> SolverOutput:
     """Answer the question and outline the logic steps."""
-    # Body is intentionally empty; dspyer generates the call from the signature
-    pass
 
-# Await the call naturally in async environments:
 result = await solve(question="What is the capital of France?")
 ```
 
-You can also decorate standard `dspy.Module` classes to automatically wrap nested predictors:
-
 ```python
+# decorate a dspy.Module class to wrap its nested predictors
 @self_correcting(schema=SolverOutput, max_retries=3)
 class Solver(dspy.Module):
     def __init__(self):
@@ -167,8 +126,9 @@ class Solver(dspy.Module):
         return self.solve(question=question)
 ```
 
-### 2. Prompt Optimization (Tune, Save, Load)
-Compile your transpiled program, optimize against a dataset using any DSPy teleprompter, and save the serialized config to JSON:
+### 2. Prompt optimization (tune, save, load)
+
+Because each step compiles to a standard `dspy.Module`, you optimize it with any DSPy teleprompter against your own metric, then save and load the result. The optimizer is DSPy's; dspyer just makes the step reachable from your graph.
 
 ```python
 from dspy.teleprompt import BootstrapFewShot
@@ -179,17 +139,15 @@ def metric(example, pred, trace=None) -> bool:
 optimizer = BootstrapFewShot(metric=metric, max_bootstrapped_demos=2)
 optimized = optimizer.compile(program, trainset=trainset)
 
-# Save prompts
-optimized.save_prompts("agent_config.json")
-
-# Load in production
-production_program.load_prompts("agent_config.json")
+optimized.save_prompts("agent_config.json")     # save tuned instructions
+production_program.load_prompts("agent_config.json")  # load in prod
 ```
 
-On a bundled sentiment benchmark ([`examples/benchmark.py`](https://github.com/theramkm/dspyer/blob/main/examples/benchmark.py), run with a simulated backend), optimization lifts accuracy **60% → 90%**, tuning only the reasoning node.
+> The bundled [`examples/benchmark.py`](https://github.com/theramkm/dspyer/blob/main/examples/benchmark.py) uses a **simulated backend** to illustrate the optimize-measure loop end to end (it shows a 60% -> 90% lift on a toy sentiment task). The number is illustrative, not a benchmark of real-model accuracy. Swap in a real model and your own held-out metric to measure the actual lift on your task.
 
-### 3. Orchestrator Integration (LangGraph)
-You do not need to replace your orchestrator. You can compile individual `dspyer` nodes and invoke them inside existing LangGraph nodes:
+### 3. Drop into your existing LangGraph (no rewrite)
+
+You don't replace your orchestrator. Compile individual dspyer nodes and call them inside the LangGraph nodes you already have. Your deterministic and tool nodes stay plain Python; only the reasoning nodes get wrapped.
 
 ```python
 compiled_agent = AgentTranspiler.compile(graph)
@@ -199,7 +157,7 @@ def run_agent_node(state):
     return {"agent_response": pred.answer, "citations": pred.citations}
 ```
 
-Alternatively, scaffold an entire LangGraph `StateGraph` topology into a `dspyer.Graph` automatically. Non-LLM nodes are preserved as native Python passthroughs:
+You can also scaffold an existing LangGraph `StateGraph` into a `dspyer.Graph`, preserving non-LLM nodes as native passthroughs:
 
 ```python
 from dspyer import from_langgraph
@@ -212,219 +170,141 @@ graph = from_langgraph(builder, node_mappings=node_mappings)
 program = AgentTranspiler.compile(graph)
 ```
 
-### 4. Telemetry & Validation Reporting
-Enable validation logging to capture production failure metadata:
+### 4. Observable self-correction
+
+This is the part DSPy and most agent stacks don't give you: a self-correction loop you can actually watch. When a step fails validation and repairs itself, dspyer can show you exactly what happened, what failed, what feedback it sent the model, and what came back.
+
+**Ambient console logging (zero code changes).** Set one environment variable:
+
+```bash
+export DSPYER_TRACE=1     # print a trace ONLY when a run struggled (corrected or failed)
+export DSPYER_TRACE=all   # print a trace for every run, including clean passes
+# unset / 0 / false        # silent
+```
+
+Running the quickstart above with `DSPYER_TRACE=1` prints the corrected run to stderr:
+
+```text
+dspyer · answer · 2 attempts · 0.91s · ✓ corrected [failed fields: citations]
+────────────────────────────────────────────────────────────────────────
+attempt 1 [Answer]  ✗ validation failed (0.42s)
+   citations       Answer must cite at least one source   got: []
+   feedback sent → "Field 'citations': Answer must cite at least one source (Value got: [])"
+attempt 2 [Answer]  ✓ passed (0.49s)
+   text = 'Apache-2.0 [doc_1].'   citations = ['doc_1']
+────────────────────────────────────────────────────────────────────────
+```
+
+Practical diagnostics first: happy paths are filtered out by default so your log stream stays signal, not noise.
+
+**Programmatic access.** Pass `trace=True` to attach a `SelfCorrectionTrace` to the result (or to a raised exception), and read it back with `get_trace()`:
+
+```python
+from dspyer import get_trace
+
+@self_correcting(schema=Answer, max_retries=3, trace=True)
+def answer(question: str) -> Answer:
+    """Answer the question and cite your sources."""
+
+try:
+    result = answer(question="Tell me about Python.")
+    trace = get_trace(result)
+    print(f"passed · retries={trace.retries} · {trace.duration_s:.2f}s")
+except Exception as err:
+    trace = get_trace(err)
+    print(f"failed · retries={trace.retries} · fields={trace.failed_fields}")
+```
+
+`trace=True` only attaches the object; it never prints. Printing is controlled solely by `DSPYER_TRACE`.
+
+**Route traces to your own stack.** Pass an `on_trace` callback to ship the structured trace anywhere (Datadog, Langfuse, your logger). Callbacks are isolated; an exception in your callback is swallowed and logged, never crashing the call it observed.
+
+```python
+def to_sink(trace):
+    datadog.send_event(title="LLM self-correction", text=trace.pretty_string())
+
+@self_correcting(schema=Answer, max_retries=3, trace=True, on_trace=to_sink)
+def answer(question: str) -> Answer:
+    """Answer the question and cite your sources."""
+```
+
+> Tracing covers the self-correction loop on sync and async calls. It is not currently attached to `astream` event streams.
+
+### 5. Validation reporting
+
+Log per-run validation outcomes, then generate a summary of where your nodes fail.
 
 ```python
 program = AgentTranspiler.compile(graph, validation_log_path="logs/validation.jsonl")
-```
 
-Generate a summary report detailing per-node error rates and failing Pydantic fields:
-
-```python
 from dspyer import generate_validation_report
-
 print(generate_validation_report("logs/validation.jsonl"))
 ```
 
-Example report:
 ```text
-==================================================
-           dspyer Batch Validation Report
-==================================================
-
 Node: Synthesizer
---------------------------------------------------
-  Total Runs: 10
-  Successful Runs: 8 (80.0%)
-  Failed Runs: 2 (20.0%)
+  Total Runs: 10 | Successful: 8 (80.0%) | Failed: 2 (20.0%)
   Retry Rate: 40.0% (4/10 runs required retries)
-  Average Retries: 0.80 per run
-  Top Failing Pydantic Fields:
-    - citations: 4 errors (66.7% of total errors)
-    - answer: 2 errors (33.3% of total errors)
-
-==================================================
+  Top Failing Fields:
+    - citations: 4 errors (66.7%)
+    - answer:    2 errors (33.3%)
 ```
 
-### 5. Self-Correction Dataset Flywheel
-Configure `dataset_log_path` on either the `@self_correcting` decorator or during transpilation compilation to capture successful self-correction runs (saving the initial input and the final corrected output):
+### 6. Self-correction dataset flywheel
+
+Capture successful self-corrections as input/output pairs, then replay them as a training set, so the model's own repairs become tomorrow's few-shot examples.
 
 ```python
 program = AgentTranspiler.compile(graph, dataset_log_path="logs/flywheel.jsonl")
-```
 
-Then, load the logged executions using `load_logged_dataset` to dynamically generate a clean training dataset of `dspy.Example` objects:
-
-```python
 from dspyer import load_logged_dataset
-
-# We must specify which keys act as model inputs
-trainset = load_logged_dataset(
-    dataset_log_path="logs/flywheel.jsonl",
-    input_keys=["query"]
-)
+trainset = load_logged_dataset(dataset_log_path="logs/flywheel.jsonl", input_keys=["query"])
 ```
 
-### 6. Escape Hatch Node Decorator (`@dspyer_node`)
-
-Avoid brittle AST static analysis on complex node callables by using the [@dspyer_node](https://github.com/theramkm/dspyer/blob/main/dspyer/decorator.py) decorator. It explicitly defines a node contract, instructions, and schemas directly on functions:
+### 7. Async & streaming
 
 ```python
-from dspyer import dspyer_node
-
-class ExtractorInput(BaseModel):
-    query: str
-
-class ExtractorOutput(BaseModel):
-    entities: list[str]
-
-@dspyer_node(
-    input_model=ExtractorInput,
-    output_model=ExtractorOutput,
-    instructions="Extract named entities from the user query."
-)
-def extract_entities_node(state):
-    # This node is explicitly registered with its typing contract
-    # Bypasses AST static analysis during LangGraph conversion
-    pass
-```
-
-### 7. Async & Streaming Pipelines
-
-For concurrent web environments (like FastAPI), compile programs to execute asynchronously via [aforward](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py) or stream intermediate events via [astream](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py):
-
-```python
-program = AgentTranspiler.compile(graph, output_model=ExtractorOutput)
-
-# 1. Async forward call
 result = await program.aforward(query="Alice and Bob went to Paris")
-print(result.entities)
 
-# 2. Async event streaming
 async for event in program.astream(query="Alice and Bob went to Paris"):
-    print(f"Event: {event['event']} | Node: {event.get('node')}")
+    print(f"{event['event']} · {event.get('node')}")
 ```
 
-### 8. Pluggable Storage Adapters
+### 8. Pluggable storage adapters
 
-Register custom thread-safe storage engines for production dataset logging and validation reporting using the [BaseStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py) interface. By default, it falls back to a thread-pooled, non-blocking [FileStorageAdapter](https://github.com/theramkm/dspyer/blob/main/dspyer/utils.py):
+Swap the default thread-pooled file logger for your own backend by implementing `BaseStorageAdapter`.
 
 ```python
 from dspyer import BaseStorageAdapter, set_storage_adapter
 
 class CustomDatabaseAdapter(BaseStorageAdapter):
     def append_line(self, target: str, line: str) -> None:
-        # Custom synchronous DB write
         db.insert(target, line)
-
     async def append_line_async(self, target: str, line: str) -> None:
-        # Custom non-blocking async DB write
         await db.async_insert(target, line)
 
-# Register custom adapter globally
 set_storage_adapter(CustomDatabaseAdapter())
 ```
 
-### 9. Observable Self-Correction Tracing
-
-Make `dspyer`'s internal validation, retry, and self-correction loop transparent and debuggable. You can observe execution traces via environment variables, programmatic attributes, or custom logging callbacks.
-
-#### 1. Ambient Console Logging (Zero Code Changes)
-Control logging behavior globally via the `DSPYER_TRACE` environment variable:
-* **`DSPYER_TRACE=1` (or `true`)**: Prints execution details to stderr *only* for runs that encountered schema validation failures or self-correction retries. Clean, successful, first-attempt happy paths remain silent.
-* **`DSPYER_TRACE=all`**: Verbose logging. Prints trace details for all runs.
-* **Unset or other values (e.g. `0`, `false`)**: Remains silent.
-
-```bash
-export DSPYER_TRACE=1
-# Run your program or decorator as usual. If validation fails, a pretty trace is printed to stderr.
-```
-
-#### 2. Programmatic Trace Retrieval
-Pass `trace=True` (to decorators) or `_trace=True` (to compiled program graph calls) to attach the computed `SelfCorrectionTrace` object directly to returned models, prediction results, or raised validation exceptions. Retrieve it uniformly using `dspyer.get_trace()`:
-
-```python
-from dspyer import get_trace
-
-# Attach trace silently (decoupled from console printing)
-@self_correcting(max_retries=3, trace=True)
-def answer_question(query: str) -> RAGResponse:
-    pass
-
-try:
-    result = answer_question(query="Tell me about Python.")
-    trace = get_trace(result)
-    if trace:
-        print(f"Passed! Retries: {trace.retries}, Duration: {trace.duration_s}s")
-except Exception as err:
-    trace = get_trace(err)
-    if trace:
-        print(f"Failed! Retries taken: {trace.retries}, Errors: {trace.failed_fields}")
-```
-
-#### 3. Custom telemetry / Observability Callbacks (`on_trace`)
-Route structured traces directly to your telemetry (e.g. OpenTelemetry, Datadog, Langfuse) or internal logging stack. The callback execution is fully isolated; exceptions raised in callbacks are swallowed and logged as warnings:
-
-```python
-def log_to_observability_sink(trace):
-    # trace.as_dict() yields a clean serialized representation of all attempts
-    datadog.send_event(title="LLM Self-Correction Run", text=trace.pretty_string())
-
-# Bind callback
-@self_correcting(max_retries=3, trace=True, on_trace=log_to_observability_sink)
-def run_agent(task: str) -> TaskOutput:
-    pass
-```
-
-#### 4. Trace Presentation Output Format
-Traces output high-context, skimmable diagnostic headers, failed fields, durations, and auto-truncated variables/collections:
-
-```text
-==================================================
-           dspyer Self-Correction Trace
-==================================================
-Target: Synthesizer
-Final Status: ✓ corrected
-Failed Fields: citations
-Duration: 0.45s
-Attempts: 2
---------------------------------------------------
-
-Attempt 1 [Synthesizer] (duration: 0.12s) - Status: ✗ FAILED
-  Failed Fields: citations
-  Pydantic Validation Error:
-    Field 'citations': Answer must cite at least one source. (Value got: [])
-  Outputs:
-    answer = 'Apache-2.0.'
-    citations = []
-
-Attempt 2 [Synthesizer] (duration: 0.33s) - Status: ✓ SUCCESS
-  Outputs:
-    answer = 'Apache-2.0 [doc_1].'
-    citations = ['doc_1']
-==================================================
-```
-
 ---
 
-## Additional References
+## More
 
 | Feature | Summary |
 |---|---|
-| `use_cot=True` | Injects chain-of-thought rationales dynamically without polluting output schemas. |
-| `ImmutableState.merge()` | Standard merge policies (`last_write_wins`, `combine_lists`, `raise`) to reconcile parallel branches. |
-| `StatefulNode` parameters | Per-node `max_retries` and custom `refine_instructions` configurations. |
-| `@dspyer_node` | Bypasses graph AST parsing with explicit input/output schema metadata declarations. |
-| `aforward` / `astream` | Non-blocking async execution and fine-grained graph step streaming. |
-| Copy-on-Write (COW) | High-speed dictionary state patching that preserves untouched branches. |
-| Pluggable Storage | Thread-safe database and custom file adapters for production telemetry log sinks. |
+| `use_cot=True` | Inject chain-of-thought rationales without polluting the output schema. |
+| `@dspyer_node` | Declare a node's input/output schema explicitly, bypassing graph AST parsing. |
+| `ImmutableState.merge()` | Reconcile parallel branches with `last_write_wins`, `combine_lists`, or `raise`. |
+| `StatefulNode` params | Per-node `max_retries` and custom `refine_instructions`. |
+| `DirectLM` | Pooled-connection LM runtime that bypasses LiteLLM for Ollama / OpenAI / Anthropic / Gemini. |
+
+Full docs: [theramkm.github.io/dspyer](https://theramkm.github.io/dspyer/)
 
 ---
 
-## Project Status
+## Project status
 
-Stable release: [![PyPI Version](https://img.shields.io/pypi/v/dspyer.svg?style=flat-square&color=blue)](https://pypi.org/project/dspyer/) [![Latest Release](https://img.shields.io/github/v/release/theramkm/dspyer?style=flat-square&color=blueviolet)](https://github.com/theramkm/dspyer/releases). Actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
+Stable release: [![PyPI Version](https://img.shields.io/pypi/v/dspyer.svg?style=flat-square&color=blue)](https://pypi.org/project/dspyer/) [![Latest Release](https://img.shields.io/github/v/release/theramkm/dspyer?style=flat-square&color=blueviolet)](https://github.com/theramkm/dspyer/releases). Actively developed. Green CI across Python 3.10-3.14, fully type-checked (`mypy`) and linted (`ruff`), with a comprehensive test suite. Issues and PRs welcome.
 
 ## License
 

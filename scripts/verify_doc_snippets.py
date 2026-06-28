@@ -23,15 +23,15 @@ def verify_doc_snippets():
     print("Extracting and testing README.md Quickstart snippets...")
     readme_blocks = extract_python_blocks(readme_path)
 
-    if len(readme_blocks) < 3:
+    if len(readme_blocks) < 1:
         print(
-            f"[FAIL] Expected at least 3 python blocks in README.md, found {len(readme_blocks)}",
+            f"[FAIL] Expected at least 1 python block in README.md, found {len(readme_blocks)}",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    # Concatenate the first 3 blocks (Schemas/Graph, MockLM, Execution)
-    readme_tutorial = "\n".join(readme_blocks[:3])
+    # The new README.md has the entire runnable quickstart in the first block
+    readme_tutorial = readme_blocks[0]
 
     try:
         # Use the same dictionary for globals and locals to resolve class scoping lookups correctly
