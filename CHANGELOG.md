@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.6] - 2026-06-28
+
+### Added
+- **Observable Self-Correction Tracing**: Added comprehensive support for transparent validation and self-correction tracing.
+  - Implemented environment variable `DSPYER_TRACE` (`1` / `true` / `all`) to automatically log failed validation attempts and corrections to stderr.
+  - Added `trace=True` and `_trace=True` flags to decorators and compiler to attach detailed `SelfCorrectionTrace` instances to returned models, predictions, and validation errors.
+  - Exposed uniform retrieval of traces via `dspyer.get_trace(target)`.
+  - Added safe `on_trace` logging callbacks that isolate and swallow callback errors.
+  - Implemented nesting trace logic, allowing sub-nodes to append their attempts directly to parent traces.
+  - Implemented automatic truncation of large output fields and collections in the pretty trace renderer to preserve readability.
+
 ## [0.3.5] - 2026-06-24
 
 ### Added

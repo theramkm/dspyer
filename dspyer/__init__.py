@@ -4,6 +4,7 @@ from dspyer.converter import from_langgraph
 from dspyer.decorator import dspyer_node, self_correcting
 from dspyer.graph import Graph, StatefulNode
 from dspyer.state import ImmutableState
+from dspyer.trace import Attempt, SelfCorrectionTrace, get_trace
 from dspyer.utils import (
     BaseStorageAdapter,
     FileStorageAdapter,
@@ -13,7 +14,7 @@ from dspyer.utils import (
     set_storage_adapter,
 )
 
-__version__ = "0.3.5"
+__version__ = "0.3.6"
 
 __all__ = [
     "AgentTranspiler",
@@ -32,4 +33,7 @@ __all__ = [
     "get_storage_adapter",
     "BaseStorageAdapter",
     "FileStorageAdapter",
+    "SelfCorrectionTrace",
+    "Attempt",
+    "get_trace",
 ]

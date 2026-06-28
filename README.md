@@ -326,6 +326,86 @@ class CustomDatabaseAdapter(BaseStorageAdapter):
 set_storage_adapter(CustomDatabaseAdapter())
 ```
 
+### 9. Observable Self-Correction Tracing
+
+Make `dspyer`'s internal validation, retry, and self-correction loop transparent and debuggable. You can observe execution traces via environment variables, programmatic attributes, or custom logging callbacks.
+
+#### 1. Ambient Console Logging (Zero Code Changes)
+Control logging behavior globally via the `DSPYER_TRACE` environment variable:
+* **`DSPYER_TRACE=1` (or `true`)**: Prints execution details to stderr *only* for runs that encountered schema validation failures or self-correction retries. Clean, successful, first-attempt happy paths remain silent.
+* **`DSPYER_TRACE=all`**: Verbose logging. Prints trace details for all runs.
+* **Unset or other values (e.g. `0`, `false`)**: Remains silent.
+
+```bash
+export DSPYER_TRACE=1
+# Run your program or decorator as usual. If validation fails, a pretty trace is printed to stderr.
+```
+
+#### 2. Programmatic Trace Retrieval
+Pass `trace=True` (to decorators) or `_trace=True` (to compiled program graph calls) to attach the computed `SelfCorrectionTrace` object directly to returned models, prediction results, or raised validation exceptions. Retrieve it uniformly using `dspyer.get_trace()`:
+
+```python
+from dspyer import get_trace
+
+# Attach trace silently (decoupled from console printing)
+@self_correcting(max_retries=3, trace=True)
+def answer_question(query: str) -> RAGResponse:
+    pass
+
+try:
+    result = answer_question(query="Tell me about Python.")
+    trace = get_trace(result)
+    if trace:
+        print(f"Passed! Retries: {trace.retries}, Duration: {trace.duration_s}s")
+except Exception as err:
+    trace = get_trace(err)
+    if trace:
+        print(f"Failed! Retries taken: {trace.retries}, Errors: {trace.failed_fields}")
+```
+
+#### 3. Custom telemetry / Observability Callbacks (`on_trace`)
+Route structured traces directly to your telemetry (e.g. OpenTelemetry, Datadog, Langfuse) or internal logging stack. The callback execution is fully isolated; exceptions raised in callbacks are swallowed and logged as warnings:
+
+```python
+def log_to_observability_sink(trace):
+    # trace.as_dict() yields a clean serialized representation of all attempts
+    datadog.send_event(title="LLM Self-Correction Run", text=trace.pretty_string())
+
+# Bind callback
+@self_correcting(max_retries=3, trace=True, on_trace=log_to_observability_sink)
+def run_agent(task: str) -> TaskOutput:
+    pass
+```
+
+#### 4. Trace Presentation Output Format
+Traces output high-context, skimmable diagnostic headers, failed fields, durations, and auto-truncated variables/collections:
+
+```text
+==================================================
+           dspyer Self-Correction Trace
+==================================================
+Target: Synthesizer
+Final Status: ✓ corrected
+Failed Fields: citations
+Duration: 0.45s
+Attempts: 2
+--------------------------------------------------
+
+Attempt 1 [Synthesizer] (duration: 0.12s) - Status: ✗ FAILED
+  Failed Fields: citations
+  Pydantic Validation Error:
+    Field 'citations': Answer must cite at least one source. (Value got: [])
+  Outputs:
+    answer = 'Apache-2.0.'
+    citations = []
+
+Attempt 2 [Synthesizer] (duration: 0.33s) - Status: ✓ SUCCESS
+  Outputs:
+    answer = 'Apache-2.0 [doc_1].'
+    citations = ['doc_1']
+==================================================
+```
+
 ---
 
 ## Additional References
@@ -344,7 +424,7 @@ set_storage_adapter(CustomDatabaseAdapter())
 
 ## Project Status
 
-Stable release (`0.3.3`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
+Stable release (`0.3.6`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
 
 ## License
 

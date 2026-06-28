@@ -143,6 +143,9 @@ def wrap_predictor(
     dataset_log_path: Optional[str] = None,
     redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
     validation_log_path: Optional[str] = None,
+    trace: bool = False,
+    on_trace: Optional[Callable[[Any], None]] = None,
+    name: Optional[str] = None,
 ) -> Any:
     """Wraps an individual dspy.Predict instance with a correction retry loop."""
     if getattr(predictor, "_wrapped_self_correcting", False):
@@ -163,6 +166,26 @@ def wrap_predictor(
 
     @functools.wraps(orig_forward)
     def new_forward(*args, **kwargs):
+        import time
+
+        from dspyer.trace import (
+            SelfCorrectionTrace,
+            _active_trace,
+            execute_on_trace,
+            record_attempt,
+            register_trace,
+            should_print_trace,
+        )
+
+        trace_token = None
+        created_trace = None
+        active_t = _active_trace.get()
+        if active_t is None:
+            trace_name = name or target_schema.__name__
+            created_trace = SelfCorrectionTrace(name=trace_name)
+            trace_token = _active_trace.set(created_trace)
+            active_t = created_trace
+
         sig = inspect.signature(orig_forward)
         bound = sig.bind(*args, **kwargs)
         bound.apply_defaults()
@@ -175,120 +198,184 @@ def wrap_predictor(
             else:
                 current_inputs[k] = v
 
-        # Temporarily restore original forward to allow calling the module directly
-        # and triggering the standard __call__ machinery (which sets up DSPy traces etc)
-        # without warning.
-        predictor.forward = orig_forward
         try:
-            prediction = predictor.__class__.__call__(predictor, *args, **kwargs)
-        finally:
-            predictor.forward = new_forward
-
-        attempt = 0
-        all_failed_fields: list[str] = []
-        while attempt < max_retries:
+            # Temporarily restore original forward to allow calling the module directly
+            predictor.forward = orig_forward
+            pred_start = time.time()
             try:
-                parsed_model, raw_data = parse_and_validate(prediction, target_schema, validator)
-                if attempt > 0 and dataset_log_path is not None:
-                    from dspyer.utils import log_self_correction_example
+                prediction = predictor.__class__.__call__(predictor, *args, **kwargs)
+            finally:
+                predictor.forward = new_forward
+            pred_duration = time.time() - pred_start
 
-                    log_self_correction_example(
-                        dataset_log_path,
-                        current_inputs,
-                        parsed_model.model_dump(),
-                        redact_hook,
-                    )
-                if validation_log_path is not None:
-                    from dspyer.utils import log_validation_event
+            attempt = 0
+            all_failed_fields: list[str] = []
+            while attempt < max_retries:
+                raw_data = {}
+                if hasattr(prediction, "items"):
+                    for k, v in prediction.items():
+                        raw_data[k] = v
+                else:
+                    for k in getattr(prediction, "_store", {}).keys():
+                        raw_data[k] = getattr(prediction, k, None)
 
-                    log_validation_event(
-                        validation_log_path,
-                        node_name=target_schema.__name__,
-                        success=True,
-                        retries_taken=attempt,
-                        failed_fields=all_failed_fields,
-                    )
-                return prediction
-            except ValidationError as val_err:
-                attempt += 1
-                for err in val_err.errors():
-                    loc_str = ".".join(str(x) for x in err["loc"]) if err.get("loc") else "unknown"
-                    all_failed_fields.append(loc_str)
-
-                # Format natural language feedback
-                feedback_lines = []
-                for err in val_err.errors():
-                    loc = " -> ".join(str(x) for x in err["loc"])
-                    msg = err["msg"]
-                    inp = err.get("input", "")
-                    feedback_lines.append(f"Field '{loc}': {msg} (Value got: {inp})")
-                feedback_str = "\n".join(feedback_lines)
-
-                # Record error trace if OpenTelemetry span is active
                 try:
-                    from dspyer.telemetry import get_current_span
+                    parsed_model, parsed_raw = parse_and_validate(
+                        prediction, target_schema, validator
+                    )
 
-                    span = get_current_span()
-                    if span is not None and hasattr(span, "record_validation_error"):
-                        span.record_validation_error(val_err)
-                except Exception:
-                    pass
+                    # Record success attempt
+                    record_attempt(
+                        trace=active_t,
+                        attempt_num=attempt + 1,
+                        success=True,
+                        duration_s=pred_duration,
+                        outputs=parsed_model.model_dump(),
+                        node_name=target_schema.__name__,
+                    )
 
-                if attempt >= max_retries:
+                    if attempt > 0 and dataset_log_path is not None:
+                        from dspyer.utils import log_self_correction_example
+
+                        log_self_correction_example(
+                            dataset_log_path,
+                            current_inputs,
+                            parsed_model.model_dump(),
+                            redact_hook,
+                        )
                     if validation_log_path is not None:
                         from dspyer.utils import log_validation_event
 
                         log_validation_event(
                             validation_log_path,
                             node_name=target_schema.__name__,
-                            success=False,
+                            success=True,
                             retries_taken=attempt,
                             failed_fields=all_failed_fields,
                         )
-                    raise val_err
+                    break
+                except ValidationError as val_err:
+                    attempt += 1
+                    for err in val_err.errors():
+                        loc_str = (
+                            ".".join(str(x) for x in err["loc"]) if err.get("loc") else "unknown"
+                        )
+                        all_failed_fields.append(loc_str)
 
-                # Build refinement signature dynamically on the predictor
-                refiner_attr = f"_refiner_{target_schema.__name__}"
-                if not hasattr(predictor, refiner_attr):
-                    fields = {}
-                    for name, field in predictor.signature.input_fields.items():
-                        fields[name] = (field.annotation, field)
-                    fields["failed_output"] = (
-                        str,
-                        dspy.InputField(
-                            desc="The previous invalid output that failed schema validation."
-                        ),
-                    )
-                    fields["error_feedback"] = (
-                        str,
-                        dspy.InputField(
-                            desc="Natural language feedback outlining the schema validation errors to fix."
-                        ),
-                    )
-                    for name, field in predictor.signature.output_fields.items():
-                        fields[name] = (field.annotation, field)
+                    # Format natural language feedback
+                    feedback_lines = []
+                    for err in val_err.errors():
+                        loc = " -> ".join(str(x) for x in err["loc"])
+                        msg = err["msg"]
+                        inp = err.get("input", "")
+                        feedback_lines.append(f"Field '{loc}': {msg} (Value got: {inp})")
+                    feedback_str = "\n".join(feedback_lines)
 
-                    instructions = refine_instructions or (
-                        "Review the original inputs and the failed_output. "
-                        "Correct the failed_output based on the error_feedback. "
-                        "Ensure the output satisfies the expected schema."
+                    # Record failed attempt
+                    record_attempt(
+                        trace=active_t,
+                        attempt_num=attempt,
+                        success=False,
+                        duration_s=pred_duration,
+                        outputs=raw_data,
+                        validation_err=val_err,
+                        error_feedback=feedback_str if attempt < max_retries else None,
+                        node_name=target_schema.__name__,
                     )
-                    refine_sig = dspy.make_signature(
-                        signature=fields,
-                        instructions=instructions,
-                        signature_name=f"{predictor.signature.__name__}Refine",
-                    )
-                    setattr(predictor, refiner_attr, dspy.Predict(refine_sig))
 
-                refiner = getattr(predictor, refiner_attr)
-                refiner_inputs = {
-                    **current_inputs,
-                    "failed_output": str(prediction),
-                    "error_feedback": feedback_str,
-                }
-                prediction = refiner(**refiner_inputs)
+                    # Record error trace if OpenTelemetry span is active
+                    try:
+                        from dspyer.telemetry import get_current_span
 
-        return prediction
+                        span = get_current_span()
+                        if span is not None and hasattr(span, "record_validation_error"):
+                            span.record_validation_error(val_err)
+                    except Exception:
+                        pass
+
+                    if attempt >= max_retries:
+                        if validation_log_path is not None:
+                            from dspyer.utils import log_validation_event
+
+                            log_validation_event(
+                                validation_log_path,
+                                node_name=target_schema.__name__,
+                                success=False,
+                                retries_taken=attempt,
+                                failed_fields=all_failed_fields,
+                            )
+                        raise val_err
+
+                    # Build refinement signature dynamically on the predictor
+                    refiner_attr = f"_refiner_{target_schema.__name__}"
+                    if not hasattr(predictor, refiner_attr):
+                        fields = {}
+                        for field_name, field in predictor.signature.input_fields.items():
+                            fields[field_name] = (field.annotation, field)
+                        fields["failed_output"] = (
+                            str,
+                            dspy.InputField(
+                                desc="The previous invalid output that failed schema validation."
+                            ),
+                        )
+                        fields["error_feedback"] = (
+                            str,
+                            dspy.InputField(
+                                desc="Natural language feedback outlining the schema validation errors to fix."
+                            ),
+                        )
+                        for field_name, field in predictor.signature.output_fields.items():
+                            fields[field_name] = (field.annotation, field)
+
+                        instructions = refine_instructions or (
+                            "Review the original inputs and the failed_output. "
+                            "Correct the failed_output based on the error_feedback. "
+                            "Ensure the output satisfies the expected schema."
+                        )
+                        refine_sig = dspy.make_signature(
+                            signature=fields,
+                            instructions=instructions,
+                            signature_name=f"{predictor.signature.__name__}Refine",
+                        )
+                        setattr(predictor, refiner_attr, dspy.Predict(refine_sig))
+
+                    refiner = getattr(predictor, refiner_attr)
+                    refine_inputs = {
+                        **current_inputs,
+                        "failed_output": str(prediction),
+                        "error_feedback": feedback_str,
+                    }
+
+                    # Time refiner call specifically
+                    pred_start = time.time()
+                    prediction = refiner(**refine_inputs)
+                    pred_duration = time.time() - pred_start
+
+            if active_t is not None:
+                register_trace(prediction, active_t)
+
+            if created_trace:
+                created_trace.duration_s = time.time() - created_trace.start_time
+                execute_on_trace(on_trace, created_trace)
+                if should_print_trace(created_trace):
+                    created_trace.print()
+
+            return prediction
+
+        except Exception as exc:
+            if active_t is not None:
+                register_trace(exc, active_t)
+
+            if created_trace:
+                created_trace.duration_s = time.time() - created_trace.start_time
+                execute_on_trace(on_trace, created_trace)
+                if should_print_trace(created_trace):
+                    created_trace.print()
+            raise
+
+        finally:
+            if trace_token is not None:
+                _active_trace.reset(trace_token)
 
     predictor.forward = new_forward
     # Override standard __call__ trigger as well
@@ -305,6 +392,8 @@ def self_correcting(
     dataset_log_path: Optional[str] = None,
     redact_hook: Optional[Callable[[Dict[str, Any]], Optional[Dict[str, Any]]]] = None,
     validation_log_path: Optional[str] = None,
+    trace: bool = False,
+    on_trace: Optional[Callable[[Any], None]] = None,
 ) -> Callable[[Any], Any]:
     """
     Decorator to wrap a dspy.Module class or a dspy.Predict instance with schema-enforced
@@ -334,6 +423,8 @@ def self_correcting(
                                 dataset_log_path,
                                 redact_hook,
                                 validation_log_path,
+                                trace=trace,
+                                on_trace=on_trace,
                             ),
                         )
 
@@ -345,126 +436,211 @@ def self_correcting(
 
                 @functools.wraps(orig_forward)
                 def new_forward(self, *args, **kwargs):
+                    import time
+
+                    from dspyer.trace import (
+                        SelfCorrectionTrace,
+                        _active_trace,
+                        execute_on_trace,
+                        record_attempt,
+                        register_trace,
+                        should_print_trace,
+                    )
+
+                    trace_token = None
+                    created_trace = None
+                    active_t = _active_trace.get()
+                    if active_t is None:
+                        created_trace = SelfCorrectionTrace(name=schema.__name__)
+                        trace_token = _active_trace.set(created_trace)
+                        active_t = created_trace
+
                     sig_inspect = inspect.signature(orig_forward)
                     bound = sig_inspect.bind(self, *args, **kwargs)
                     bound.apply_defaults()
                     current_inputs = {k: v for k, v in bound.arguments.items() if k != "self"}
 
-                    prediction = orig_forward(self, *args, **kwargs)
+                    try:
+                        pred_start = time.time()
+                        prediction = orig_forward(self, *args, **kwargs)
+                        pred_duration = time.time() - pred_start
 
-                    attempt = 0
-                    all_failed_fields: list[str] = []
-                    while attempt < max_retries:
-                        try:
-                            parsed_model, raw_data = parse_and_validate(
-                                prediction, schema, validator
-                            )
-                            if attempt > 0 and dataset_log_path is not None:
-                                from dspyer.utils import log_self_correction_example
-
-                                log_self_correction_example(
-                                    dataset_log_path,
-                                    current_inputs,
-                                    parsed_model.model_dump(),
-                                    redact_hook,
-                                )
-                            if validation_log_path is not None:
-                                from dspyer.utils import log_validation_event
-
-                                log_validation_event(
-                                    validation_log_path,
-                                    node_name=schema.__name__,
-                                    success=True,
-                                    retries_taken=attempt,
-                                    failed_fields=all_failed_fields,
-                                )
-                            return prediction
-                        except ValidationError as val_err:
-                            attempt += 1
-                            for err in val_err.errors():
-                                loc_str = (
-                                    ".".join(str(x) for x in err["loc"])
-                                    if err.get("loc")
-                                    else "unknown"
-                                )
-                                all_failed_fields.append(loc_str)
-
-                            # Format error message
-                            feedback_lines = []
-                            for err in val_err.errors():
-                                loc = " -> ".join(str(x) for x in err["loc"])
-                                msg = err["msg"]
-                                inp = err.get("input", "")
-                                feedback_lines.append(f"Field '{loc}': {msg} (Value got: {inp})")
-                            feedback_str = "\n".join(feedback_lines)
+                        attempt = 0
+                        all_failed_fields: list[str] = []
+                        while attempt < max_retries:
+                            raw_data = {}
+                            if hasattr(prediction, "items"):
+                                for k, v in prediction.items():
+                                    raw_data[k] = v
+                            else:
+                                for k in getattr(prediction, "_store", {}).keys():
+                                    raw_data[k] = getattr(prediction, k, None)
 
                             try:
-                                from dspyer.telemetry import get_current_span
+                                parsed_model, parsed_raw = parse_and_validate(
+                                    prediction, schema, validator
+                                )
 
-                                span = get_current_span()
-                                if span is not None and hasattr(span, "record_validation_error"):
-                                    span.record_validation_error(val_err)
-                            except Exception:
-                                pass
+                                # Record success attempt
+                                record_attempt(
+                                    trace=active_t,
+                                    attempt_num=attempt + 1,
+                                    success=True,
+                                    duration_s=pred_duration,
+                                    outputs=parsed_model.model_dump(),
+                                    node_name=schema.__name__,
+                                )
 
-                            if attempt >= max_retries:
+                                if attempt > 0 and dataset_log_path is not None:
+                                    from dspyer.utils import log_self_correction_example
+
+                                    log_self_correction_example(
+                                        dataset_log_path,
+                                        current_inputs,
+                                        parsed_model.model_dump(),
+                                        redact_hook,
+                                    )
                                 if validation_log_path is not None:
                                     from dspyer.utils import log_validation_event
 
                                     log_validation_event(
                                         validation_log_path,
                                         node_name=schema.__name__,
-                                        success=False,
+                                        success=True,
                                         retries_taken=attempt,
                                         failed_fields=all_failed_fields,
                                     )
-                                raise val_err
+                                break
+                            except ValidationError as val_err:
+                                attempt += 1
+                                for err in val_err.errors():
+                                    loc_str = (
+                                        ".".join(str(x) for x in err["loc"])
+                                        if err.get("loc")
+                                        else "unknown"
+                                    )
+                                    all_failed_fields.append(loc_str)
 
-                            # Resolve or instantiate module refiner dynamically
-                            refiner_attr = f"_refiner_{schema.__name__}"
-                            if not hasattr(self, refiner_attr):
-                                orig_sig = make_signature_from_args_and_schema(
-                                    list(current_inputs.keys()),
-                                    schema,
-                                    orig_forward.__doc__
-                                    or self.__class__.__doc__
-                                    or f"Correct output for {schema.__name__}",
-                                )
-                                fields = {}
-                                for name, field in orig_sig.input_fields.items():
-                                    fields[name] = (field.annotation, field)
-                                fields["failed_output"] = (
-                                    str,
-                                    dspy.InputField(
-                                        desc="The previous invalid output that failed schema validation."
-                                    ),
-                                )
-                                fields["error_feedback"] = (
-                                    str,
-                                    dspy.InputField(
-                                        desc="Natural language feedback outlining the schema validation errors to fix."
-                                    ),
-                                )
-                                for name, field in orig_sig.output_fields.items():
-                                    fields[name] = (field.annotation, field)
+                                # Format error message
+                                feedback_lines = []
+                                for err in val_err.errors():
+                                    loc = " -> ".join(str(x) for x in err["loc"])
+                                    msg = err["msg"]
+                                    inp = err.get("input", "")
+                                    feedback_lines.append(
+                                        f"Field '{loc}': {msg} (Value got: {inp})"
+                                    )
+                                feedback_str = "\n".join(feedback_lines)
 
-                                refine_sig = dspy.make_signature(
-                                    signature=fields,
-                                    instructions=refine_instructions
-                                    or "Review inputs and correct the failed_output utilizing feedback.",
-                                    signature_name=f"{schema.__name__}RefineSignature",
+                                # Record failed attempt
+                                record_attempt(
+                                    trace=active_t,
+                                    attempt_num=attempt,
+                                    success=False,
+                                    duration_s=pred_duration,
+                                    outputs=raw_data,
+                                    validation_err=val_err,
+                                    error_feedback=feedback_str if attempt < max_retries else None,
+                                    node_name=schema.__name__,
                                 )
-                                setattr(self, refiner_attr, dspy.Predict(refine_sig))
 
-                            refiner = getattr(self, refiner_attr)
-                            refiner_inputs = {
-                                **current_inputs,
-                                "failed_output": str(prediction),
-                                "error_feedback": feedback_str,
-                            }
-                            prediction = refiner(**refiner_inputs)
+                                try:
+                                    from dspyer.telemetry import get_current_span
 
-                    return prediction
+                                    span = get_current_span()
+                                    if span is not None and hasattr(
+                                        span, "record_validation_error"
+                                    ):
+                                        span.record_validation_error(val_err)
+                                except Exception:
+                                    pass
+
+                                if attempt >= max_retries:
+                                    if validation_log_path is not None:
+                                        from dspyer.utils import log_validation_event
+
+                                        log_validation_event(
+                                            validation_log_path,
+                                            node_name=schema.__name__,
+                                            success=False,
+                                            retries_taken=attempt,
+                                            failed_fields=all_failed_fields,
+                                        )
+                                    raise val_err
+
+                                # Resolve or instantiate module refiner dynamically
+                                refiner_attr = f"_refiner_{schema.__name__}"
+                                if not hasattr(self, refiner_attr):
+                                    orig_sig = make_signature_from_args_and_schema(
+                                        list(current_inputs.keys()),
+                                        schema,
+                                        orig_forward.__doc__
+                                        or self.__class__.__doc__
+                                        or f"Correct output for {schema.__name__}",
+                                    )
+                                    fields = {}
+                                    for name, field in orig_sig.input_fields.items():
+                                        fields[name] = (field.annotation, field)
+                                    fields["failed_output"] = (
+                                        str,
+                                        dspy.InputField(
+                                            desc="The previous invalid output that failed schema validation."
+                                        ),
+                                    )
+                                    fields["error_feedback"] = (
+                                        str,
+                                        dspy.InputField(
+                                            desc="Natural language feedback outlining the schema validation errors to fix."
+                                        ),
+                                    )
+                                    for name, field in orig_sig.output_fields.items():
+                                        fields[name] = (field.annotation, field)
+
+                                    refine_sig = dspy.make_signature(
+                                        signature=fields,
+                                        instructions=refine_instructions
+                                        or "Review inputs and correct the failed_output utilizing feedback.",
+                                        signature_name=f"{schema.__name__}RefineSignature",
+                                    )
+                                    setattr(self, refiner_attr, dspy.Predict(refine_sig))
+
+                                refiner = getattr(self, refiner_attr)
+                                refine_inputs = {
+                                    **current_inputs,
+                                    "failed_output": str(prediction),
+                                    "error_feedback": feedback_str,
+                                }
+
+                                # Time refiner call specifically
+                                pred_start = time.time()
+                                prediction = refiner(**refine_inputs)
+                                pred_duration = time.time() - pred_start
+
+                        if active_t is not None:
+                            register_trace(prediction, active_t)
+
+                        if created_trace:
+                            created_trace.duration_s = time.time() - created_trace.start_time
+                            execute_on_trace(on_trace, created_trace)
+                            if should_print_trace(created_trace):
+                                created_trace.print()
+
+                        return prediction
+
+                    except Exception as exc:
+                        if active_t is not None:
+                            register_trace(exc, active_t)
+
+                        if created_trace:
+                            created_trace.duration_s = time.time() - created_trace.start_time
+                            execute_on_trace(on_trace, created_trace)
+                            if should_print_trace(created_trace):
+                                created_trace.print()
+                        raise
+
+                    finally:
+                        if trace_token is not None:
+                            _active_trace.reset(trace_token)
 
                 target.forward = new_forward
             return target
@@ -480,6 +656,8 @@ def self_correcting(
                 dataset_log_path,
                 redact_hook,
                 validation_log_path,
+                trace=trace,
+                on_trace=on_trace,
             )
 
         elif inspect.isfunction(target):
@@ -534,6 +712,9 @@ def self_correcting(
                 dataset_log_path,
                 redact_hook,
                 validation_log_path,
+                trace=trace,
+                on_trace=on_trace,
+                name=target.__name__,
             )
 
             if inspect.iscoroutinefunction(target):
@@ -545,10 +726,23 @@ def self_correcting(
                     import asyncio
 
                     # Run the self-correcting predictor in a thread to avoid blocking the event loop
-                    prediction = await asyncio.to_thread(wrapped_predictor, **bound.arguments)
-                    # Parse and validate returned outputs back into target BaseModel
-                    parsed, _ = parse_and_validate(prediction, target_schema, validator)
-                    return parsed
+                    try:
+                        prediction = await asyncio.to_thread(wrapped_predictor, **bound.arguments)
+                        # Parse and validate returned outputs back into target BaseModel
+                        parsed, _ = parse_and_validate(prediction, target_schema, validator)
+                        from dspyer.trace import get_trace, register_trace
+
+                        trace_obj = get_trace(prediction)
+                        if trace_obj is not None:
+                            register_trace(parsed, trace_obj)
+                        return parsed
+                    except Exception as exc:
+                        from dspyer.trace import get_trace, register_trace
+
+                        trace_obj = get_trace(exc)
+                        if trace_obj is not None:
+                            register_trace(exc, trace_obj)
+                        raise
 
                 return async_wrapper
 
@@ -557,10 +751,23 @@ def self_correcting(
                 bound = sig.bind(*args, **kwargs)
                 bound.apply_defaults()
                 # Run the self-correcting predictor
-                prediction = wrapped_predictor(**bound.arguments)
-                # Parse and validate returned outputs back into target BaseModel
-                parsed, _ = parse_and_validate(prediction, target_schema, validator)
-                return parsed
+                try:
+                    prediction = wrapped_predictor(**bound.arguments)
+                    # Parse and validate returned outputs back into target BaseModel
+                    parsed, _ = parse_and_validate(prediction, target_schema, validator)
+                    from dspyer.trace import get_trace, register_trace
+
+                    trace_obj = get_trace(prediction)
+                    if trace_obj is not None:
+                        register_trace(parsed, trace_obj)
+                    return parsed
+                except Exception as exc:
+                    from dspyer.trace import get_trace, register_trace
+
+                    trace_obj = get_trace(exc)
+                    if trace_obj is not None:
+                        register_trace(exc, trace_obj)
+                    raise
 
             return wrapper
 
