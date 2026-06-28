@@ -251,12 +251,22 @@ print(generate_validation_report("logs/validation.jsonl"))
 ```
 
 ```text
+==================================================
+           dspyer Batch Validation Report
+==================================================
+
 Node: Synthesizer
-  Total Runs: 10 | Successful: 8 (80.0%) | Failed: 2 (20.0%)
+--------------------------------------------------
+  Total Runs: 10
+  Successful Runs: 8 (80.0%)
+  Failed Runs: 2 (20.0%)
   Retry Rate: 40.0% (4/10 runs required retries)
-  Top Failing Fields:
-    - citations: 4 errors (66.7%)
-    - answer:    2 errors (33.3%)
+  Average Retries: 0.80 per run
+  Top Failing Pydantic Fields:
+    - citations: 4 errors (66.7% of total errors)
+    - answer: 2 errors (33.3% of total errors)
+
+==================================================
 ```
 
 ### Self-correction dataset flywheel
