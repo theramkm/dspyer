@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Detailed State Management Guide**: Added [docs/state.md](docs/state.md) to document Copy-on-Write (COW) optimization math models and list branch conflict resolution policies.
 - **Custom Decorator Walkthrough**: Added [docs/decorators.md](docs/decorators.md) explaining `@self_correcting` wrapper scopes and `@dspyer_node` escape hatches.
 - **Async & Streaming Guide**: Added [docs/async-streaming.md](docs/async-streaming.md) showing how to leverage `aforward` and `astream` execution pipelines inside ASGI web environments.
-- **Storage & Observability Guide**: Added [docs/storage.md](docs/storage.md) detailing custom `BaseStorageAdapter` database sinks, validation reports, and flywheel datasets.
+- **Storage & Observability Guides**: Added [docs/observability.md](docs/observability.md) and [docs/storage-adapters.md](docs/storage-adapters.md) detailing custom `BaseStorageAdapter` database sinks, validation reports, and flywheel datasets.
 - **Reference Docstrings**: Added comprehensive developer docstrings for async pipelines [dspyer/compiler.py](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py) and [dspyer/compiler.py](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py) in the codebase.
 
 ## [0.3.2] - 2026-06-23

@@ -64,8 +64,14 @@ plugins:
 nav:
   - Introduction: index.md
   - Getting Started: getting-started.md
-  - Reliable Outputs (Decorators): decorators.md
-  - Observability & Debugging: storage.md
-  - Graphs & State: state.md
-  - Async & Streaming: async-streaming.md
+  - Reliable Outputs:
+      - Self-Correcting Decorators: decorators.md
+  - Optimizing Prompts: optimizing.md
+  - Observability & Debugging: observability.md
+  - Working with Graphs:
+      - State & Merge Policies: state.md
+      - Async & Streaming: async-streaming.md
+  - Advanced:
+      - Storage Adapters: storage-adapters.md
+      - DirectLM (Performance): directlm.md
   - API Reference: api.md
