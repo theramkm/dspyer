@@ -424,7 +424,7 @@ Attempt 2 [Synthesizer] (duration: 0.33s) - Status: ✓ SUCCESS
 
 ## Project Status
 
-Stable release (`0.3.6`), actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
+Stable release: [![PyPI Version](https://img.shields.io/pypi/v/dspyer.svg?style=flat-square&color=blue)](https://pypi.org/project/dspyer/) [![Latest Release](https://img.shields.io/github/v/release/theramkm/dspyer?style=flat-square&color=blueviolet)](https://github.com/theramkm/dspyer/releases). Actively developed. Green CI across Python 3.10 to 3.14, fully type-checked (`mypy`) and linted (`ruff`), with a 69-case test suite. Issues and PRs are welcome.
 
 ## License
 
