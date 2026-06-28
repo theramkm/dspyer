@@ -1,27 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" width="100%" height="100%" style="background-color: #080B11; font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+<svg viewBox="0 0 960 480" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Fonts -->
+    <!-- Fonts Import -->
     <style type="text/css">
       @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;family=Outfit:wght@400;500;700&amp;display=swap');
       
-      .title-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 26px; fill: url(#grad-header); }
-      .subtitle-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 14px; fill: #94A3B8; }
-      .box-title { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 700; font-size: 15px; fill: #F8FAFC; }
-      .box-subtitle { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 500; font-size: 11px; fill: #64748B; letter-spacing: 0.05em; }
-      .body-text { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 12px; fill: #CBD5E1; }
-      .body-subtext { font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-weight: 400; font-size: 10px; fill: #94A3B8; }
-      .code-text { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 11px; fill: #A7F3D0; }
-      
-      /* Glow filters */
-      .glow-purple { filter: drop-shadow(0px 0px 8px rgba(139, 92, 246, 0.4)); }
-      .glow-emerald { filter: drop-shadow(0px 0px 8px rgba(16, 185, 129, 0.4)); }
-      .glow-blue { filter: drop-shadow(0px 0px 8px rgba(59, 130, 246, 0.4)); }
-      
-      /* Animation fallback styling */
-      @keyframes flow {
-        to { stroke-dashoffset: -20; }
-      }
-      .flow-line { stroke-dasharray: 6, 4; animation: flow 1s infinite linear; }
+      .title-text { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 30px; fill: url(#grad-header); }
+      .subtitle-text { font-family: 'Outfit', sans-serif; font-weight: 400; font-size: 15px; fill: #94A3B8; }
+      .section-title { font-family: 'Outfit', sans-serif; font-weight: 700; font-size: 11px; letter-spacing: 0.15em; }
+      .body-font { font-family: 'Outfit', sans-serif; }
+      .code-font { font-family: 'JetBrains Mono', ui-monospace, monospace; }
     </style>
 
     <!-- Gradients -->
@@ -30,176 +17,91 @@
       <stop offset="50%" stop-color="#3B82F6" />
       <stop offset="100%" stop-color="#10B981" />
     </linearGradient>
-    
-    <linearGradient id="grad-purple" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#2E1065" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#0F052D" stop-opacity="0.8"/>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#080B11"/>
+      <stop offset="1" stop-color="#04060A"/>
     </linearGradient>
 
-    <linearGradient id="grad-blue" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#172554" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#050B24" stop-opacity="0.8"/>
-    </linearGradient>
-
-    <linearGradient id="grad-emerald" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#064E3B" stop-opacity="0.8"/>
-      <stop offset="100%" stop-color="#021A13" stop-opacity="0.8"/>
-    </linearGradient>
-    
     <radialGradient id="bg-glow" cx="50%" cy="50%" r="50%">
-      <stop offset="0%" stop-color="#1E1E38" stop-opacity="0.3" />
+      <stop offset="0%" stop-color="#1D1D35" stop-opacity="0.3" />
       <stop offset="100%" stop-color="#080B11" stop-opacity="0" />
     </radialGradient>
+
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#10B981"/>
+    </linearGradient>
   </defs>
 
-  <!-- Background Layer -->
-  <rect width="100%" height="100%" fill="#080B11" />
-  <circle cx="480" cy="250" r="450" fill="url(#bg-glow)" />
+  <!-- Background Base -->
+  <rect width="960" height="480" rx="14" fill="url(#bg)"/>
+  <circle cx="480" cy="240" r="450" fill="url(#bg-glow)" />
+  <rect x="0.5" y="0.5" width="959" height="479" rx="14" fill="none" stroke="#1F2937" stroke-width="1"/>
 
-  <!-- Grid Pattern overlay for tech aesthetic -->
-  <g opacity="0.05">
-    <path d="M 0,50 L 960,50 M 0,100 L 960,100 M 0,150 L 960,150 M 0,200 L 960,200 M 0,250 L 960,250 M 0,300 L 960,300 M 0,350 L 960,350 M 0,400 L 960,400 M 0,450 L 960,450" stroke="#CCCCCC" stroke-width="1" />
-    <path d="M 100,0 L 100,500 M 200,0 L 200,500 M 300,0 L 300,500 M 400,0 L 400,500 M 500,0 L 500,500 M 600,0 L 600,500 M 700,0 L 700,500 M 800,0 L 800,500 M 900,0 L 900,500" stroke="#CCCCCC" stroke-width="1" />
+  <!-- Tech Grid Overlay -->
+  <g opacity="0.02" stroke="#FFFFFF" stroke-width="1">
+    <path d="M 0,60 L 960,60 M 0,120 L 960,120 M 0,180 L 960,180 M 0,240 L 960,240 M 0,300 L 960,300 M 0,360 L 960,360 M 0,420 L 960,420" />
+    <path d="M 120,0 L 120,480 M 240,0 L 240,480 M 360,0 L 360,480 M 480,0 L 480,480 M 600,0 L 600,480 M 720,0 L 720,480 M 840,0 L 840,480" />
   </g>
 
-  <!-- Title & Subtitle -->
-  <g transform="translate(40, 45)">
+  <!-- Wordmark + Tagline -->
+  <g transform="translate(44, 62)">
     <text class="title-text" x="0" y="0">⚡ dspyer</text>
-    <text class="subtitle-text" x="125" y="-5">Reliable, optimizable LLM steps with zero DSPy boilerplate</text>
+    <text class="subtitle-text" x="145" y="-5">Reliable, optimizable LLM steps with zero DSPy boilerplate.</text>
   </g>
 
-  <!-- FLOW CONNECTOR LINES -->
-  <g stroke-linecap="round">
-    <!-- Line 1 to 2 (Gap: 260 to 360) -->
-    <path d="M 260,250 L 360,250" stroke="#6366F1" stroke-width="2" class="glow-purple" />
-    <path d="M 260,250 L 360,250" stroke="#A78BFA" stroke-width="2" class="flow-line" />
-    
-    <!-- Line 2 to 3 (Gap: 610 to 710) -->
-    <path d="M 610,250 L 710,250" stroke="#3B82F6" stroke-width="2" class="glow-blue" />
-    <path d="M 610,250 L 710,250" stroke="#93C5FD" stroke-width="2" class="flow-line" />
-
-    <!-- Few-shot Feedback Loop (Bottom loop back) -->
-    <path d="M 820,380 L 820,440 L 145,440 L 145,380" fill="none" stroke="#10B981" stroke-width="2" class="glow-emerald" />
-    <path d="M 820,380 L 820,440 L 145,440 L 145,380" fill="none" stroke="#6EE7B7" stroke-width="2" class="flow-line" />
+  <!-- LEFT: The code you write -->
+  <text class="section-title" x="44" y="148" fill="#8B5CF6">YOU WRITE</text>
+  <rect x="44" y="160" width="392" height="252" rx="10" fill="#0C1017" stroke="#3A2C5D" stroke-width="1.5"/>
+  <g class="code-font" font-size="13.5">
+    <text x="66" y="194" fill="#10B981">@self_correcting<tspan fill="#94A3B8">(</tspan><tspan fill="#F59E0B">max_retries</tspan><tspan fill="#94A3B8">=</tspan><tspan fill="#A78BFA">3</tspan><tspan fill="#94A3B8">)</tspan></text>
+    <text x="66" y="218" fill="#3B82F6">def <tspan fill="#F8FAFC">answer</tspan><tspan fill="#94A3B8">(question: </tspan><tspan fill="#10B981">str</tspan><tspan fill="#94A3B8">) -&gt; </tspan><tspan fill="#10B981">Answer</tspan><tspan fill="#94A3B8">:</tspan></text>
+    <text x="90" y="240" fill="#64748B">"""Answer and cite your sources."""</text>
+    <text x="90" y="262" fill="#94A3B8">...</text>
+  </g>
+  <line x1="66" y1="294" x2="414" y2="294" stroke="#1E293B" stroke-width="1"/>
+  <g class="code-font" font-size="12.5" fill="#64748B">
+    <text x="66" y="320"># a normal typed function.</text>
+    <text x="66" y="340"># dspyer enforces the schema,</text>
+    <text x="66" y="360"># self-corrects on failure, and</text>
+    <text x="66" y="380"># stays an optimizable dspy.Module.</text>
   </g>
 
-  <!-- Connector labels placed cleanly in the column gaps to prevent borders overlap -->
-  <text class="body-text" x="310" y="235" text-anchor="middle" fill="#A78BFA" font-size="10px" style="font-weight: 600; letter-spacing: 0.05em;">COMPILING</text>
-  <text class="body-text" x="660" y="230" text-anchor="middle" fill="#93C5FD" font-size="9px" style="font-weight: 600; letter-spacing: 0.05em;">
-    <tspan x="660" dy="0">TUNED</tspan>
-    <tspan x="660" dy="11">RUNTIME</tspan>
-  </text>
-
-  <!-- Loop Label Box - hides the loop line underneath using background fill -->
-  <rect x="300" y="425" width="360" height="30" rx="6" fill="#080B11" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
-  <text class="body-text" x="480" y="444" text-anchor="middle" fill="#6EE7B7" style="font-weight: 600; font-size: 10px; letter-spacing: 0.05em;">FEEDBACK FLYWHEEL (FEW-SHOT TUNE)</text>
-
-  <!-- ==================== BOX 1: INPUT NODE ==================== -->
-  <g transform="translate(30, 100)">
-    <!-- Box boundary -->
-    <rect width="230" height="280" rx="12" fill="url(#grad-purple)" stroke="#8B5CF6" stroke-width="1.5" class="glow-purple" />
-    <rect width="230" height="35" rx="12" fill="#4C1D95" fill-opacity="0.4" />
-    
-    <!-- Title -->
-    <text class="box-subtitle" x="12" y="22">01 / IMPERATIVE ENTRY</text>
-    <text class="box-title" x="12" y="55">Standard Python Node</text>
-    
-    <!-- Description -->
-    <text class="body-text" x="12" y="78">Define schema with Pydantic;</text>
-    <text class="body-text" x="12" y="96">decorate functions/modules:</text>
-
-    <!-- Code Block representation -->
-    <rect x="10" y="115" width="210" height="110" rx="8" fill="#090514" stroke="#4C1D95" stroke-width="1" />
-    <text class="code-text" x="18" y="135" style="font-size: 10px;">@self_correcting(retries=3)</text>
-    <text class="code-text" x="18" y="152" fill="#3B82F6" style="font-size: 10px;">def extract(text: str) -&gt; Output:</text>
-    <text class="code-text" x="35" y="170" fill="#94A3B8" style="font-size: 10px;">"""System instructions"""</text>
-    <text class="code-text" x="35" y="188" fill="#F8FAFC" style="font-size: 10px;">pass</text>
-    
-    <text class="code-text" x="18" y="212" fill="#E2E8F0" style="font-size: 10px;"># Drops straight into LangGraph</text>
-
-    <!-- Specs -->
-    <circle cx="16" cy="248" r="3.5" fill="#A78BFA" />
-    <text class="body-text" x="28" y="252" font-size="11px">Reads signatures dynamically</text>
-    
-    <circle cx="16" cy="266" r="3.5" fill="#A78BFA" />
-    <text class="body-text" x="28" y="270" font-size="11px">Wraps functions/modules</text>
+  <!-- Arrow Transition -->
+  <g>
+    <line x1="448" y1="286" x2="506" y2="286" stroke="url(#accent)" stroke-width="2"/>
+    <path d="M506 286 l-9 -5 v10 z" fill="#10B981"/>
+    <text class="section-title" x="452" y="276" fill="#94A3B8">RUN</text>
   </g>
 
-  <!-- ==================== BOX 2: TRANSPILER ==================== -->
-  <g transform="translate(360, 100)">
-    <!-- Box boundary -->
-    <rect width="250" height="280" rx="12" fill="url(#grad-blue)" stroke="#3B82F6" stroke-width="1.5" class="glow-blue" />
-    <rect width="250" height="35" rx="12" fill="#1E3A8A" fill-opacity="0.4" />
-    
-    <!-- Title -->
-    <text class="box-subtitle" x="12" y="22">02 / COMPILATION ENGINE</text>
-    <text class="box-title" x="12" y="55">dspyer Transpilation Layer</text>
-    
-    <!-- Items -->
-    <!-- Item 1: AST Analyzer -->
-    <g transform="translate(10, 75)">
-      <rect width="230" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 600;">AST Static Analysis</text>
-      <text class="body-subtext" x="12" y="32">Isolates LLM nodes; native passthroughs</text>
-    </g>
+  <!-- RIGHT: The trace you get back -->
+  <text class="section-title" x="520" y="148" fill="#10B981">YOU SEE WHAT HAPPENED</text>
+  <rect x="520" y="160" width="396" height="252" rx="10" fill="#0C1017" stroke="#164E3E" stroke-width="1.5"/>
 
-    <!-- Item 2: Signature Builder -->
-    <g transform="translate(10, 127)">
-      <rect width="230" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 600;">Dynamic Signature Builder</text>
-      <text class="body-subtext" x="12" y="32">Maps Python types to input/output fields</text>
-    </g>
+  <g class="code-font" font-size="12">
+    <!-- Header line -->
+    <text x="540" y="190" fill="#94A3B8">dspyer · answer · 2 attempts · <tspan fill="#10B981">✓ corrected</tspan></text>
+    <line x1="540" y1="202" x2="896" y2="202" stroke="#1E293B" stroke-width="1"/>
 
-    <!-- Item 3: DirectLM -->
-    <g transform="translate(10, 179)">
-      <rect width="230" height="42" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="18" style="font-weight: 600; fill: #60A5FA;">DirectLM Connection Pool</text>
-      <text class="body-subtext" x="12" y="32">Bypasses LiteLLM for direct socket reuse</text>
-    </g>
-    
-    <!-- Item 4: json-repair -->
-    <g transform="translate(10, 231)">
-      <rect width="230" height="38" rx="6" fill="#0D152D" stroke="#1E40AF" stroke-width="1" />
-      <text class="body-text" x="12" y="16" style="font-weight: 600;">Automatic JSON Repair</text>
-      <text class="body-subtext" x="12" y="29">Delegates JSON repairs to native parser</text>
-    </g>
+    <!-- Attempt 1 -->
+    <text x="540" y="228" fill="#F8FAFC">attempt 1  <tspan fill="#EF4444">✗ validation failed</tspan></text>
+    <text x="558" y="248" fill="#94A3B8">citations <tspan fill="#64748B">→ must cite at least one source</tspan></text>
+    <text x="558" y="266" fill="#64748B" font-size="11">got: []</text>
+
+    <!-- Feedback -->
+    <text x="540" y="294" fill="#3B82F6">feedback sent → <tspan fill="#94A3B8">"cite at least one source"</tspan></text>
+
+    <!-- Attempt 2 -->
+    <text x="540" y="322" fill="#F8FAFC">attempt 2  <tspan fill="#10B981">✓ passed</tspan></text>
+    <text x="558" y="342" fill="#94A3B8">citations <tspan fill="#64748B">= ['doc_1']</tspan></text>
+    <line x1="540" y1="360" x2="896" y2="360" stroke="#1E293B" stroke-width="1"/>
+
+    <text x="540" y="388" fill="#64748B" font-size="11">$ DSPYER_TRACE=1   ·   the loop you can watch</text>
   </g>
 
-  <!-- ==================== BOX 3: OPTIMIZED RUNTIME ==================== -->
-  <g transform="translate(710, 100)">
-    <!-- Box boundary -->
-    <rect width="220" height="280" rx="12" fill="url(#grad-emerald)" stroke="#10B981" stroke-width="1.5" class="glow-emerald" />
-    <rect width="220" height="35" rx="12" fill="#064E3B" fill-opacity="0.4" />
-    
-    <!-- Title -->
-    <text class="box-subtitle" x="12" y="22">03 / RELIABLE RUNTIME</text>
-    <text class="box-title" x="12" y="55">Optimizable Program</text>
-
-    <!-- Bullet points -->
-    <g transform="translate(12, 75)">
-      <!-- Line 1: Standard dspy.Module -->
-      <circle cx="5" cy="10" r="3.5" fill="#10B981" />
-      <text class="body-text" x="15" y="14" style="font-weight: 600;">Standard dspy.Module</text>
-      <text class="body-subtext" x="15" y="27">Compatible with all DSPy optimizers</text>
-
-      <!-- Line 2: Self-Correction Loop -->
-      <circle cx="5" cy="50" r="3.5" fill="#10B981" />
-      <text class="body-text" x="15" y="54" style="font-weight: 600; fill: #34D399;">Self-Correction Loop</text>
-      <text class="body-subtext" x="15" y="67">Auto-refines outputs using feedback</text>
-
-      <!-- Line 3: Batch Reports -->
-      <circle cx="5" cy="90" r="3.5" fill="#10B981" />
-      <text class="body-text" x="15" y="94" style="font-weight: 600;">Batch Validation Reports</text>
-      <text class="body-subtext" x="15" y="107">Logs schema failure rates per node</text>
-
-      <!-- Line 4: Connection details -->
-      <circle cx="5" cy="130" r="3.5" fill="#10B981" />
-      <text class="body-text" x="15" y="134" style="font-weight: 600;">Persistent HTTP Pools</text>
-      <text class="body-subtext" x="15" y="147">Reuses sockets across concurrent calls</text>
-    </g>
-
-    <!-- Optimization highlight tag -->
-    <rect x="10" y="235" width="200" height="30" rx="6" fill="#042F2C" stroke="#059669" stroke-dasharray="3, 3" />
-    <text class="body-text" x="110" y="254" text-anchor="middle" style="font-weight: 600; fill: #34D399; font-size: 11px;">TUNABLE VIA TELEPROMPTERS</text>
+  <!-- Bottom Capability Strip -->
+  <g class="body-font" font-size="12" font-weight="600">
+    <text x="44" y="448" fill="#3B82F6">Self-correcting<tspan fill="#1F2937">  ·  </tspan><tspan fill="#10B981">Optimizable (DSPy)</tspan><tspan fill="#1F2937">  ·  </tspan><tspan fill="#94A3B8">LangGraph drop-in</tspan><tspan fill="#1F2937">  ·  </tspan><tspan fill="#94A3B8">Observable</tspan><tspan fill="#1F2937">  ·  </tspan><tspan fill="#94A3B8">Local or cloud</tspan></text>
   </g>
 </svg>
