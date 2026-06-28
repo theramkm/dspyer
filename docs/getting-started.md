@@ -125,3 +125,5 @@ Extracted Citations: ['doc_1']
 Self-Correction Steps: 1
 ```
 The node successfully recovered from the schema validation failure and returned compliant data!
+
+To inspect what happened behind the scenes during this self-correction run, you can enable console tracing by setting `DSPYER_TRACE=1` in your environment (for details, see the [Storage & Observability Guide](storage.md#4-observable-self-correction-tracing)).

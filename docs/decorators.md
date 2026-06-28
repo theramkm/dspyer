@@ -23,12 +23,14 @@ class CodeOutput(BaseModel):
 @self_correcting(max_retries=3)
 def generate_python_code(task: str) -> CodeOutput:
     """Generate high-quality, documented Python code matching the user task."""
-    pass
+    ...
 
 # When called, dspyer compiles a predictor and returns a validated CodeOutput instance
 result = generate_python_code(task="Write a binary search algorithm.")
 print(result.code)
 ```
+
+> The function body is intentionally empty (just the docstring, or `...`/`pass`). dspyer builds the model call from the signature, the docstring becomes the instructions, and the return annotation becomes the output schema, so any code in the body is not executed. (This differs from `@dspyer_node` below, whose body *does* run.)
 
 ### Async function support
 
@@ -53,11 +55,10 @@ async def translate_text(text: str, target_lang: str) -> Translation:
 result = await translate_text(text="Bonjour tout le monde", target_lang="English")
 print(result.translated_text)  # "Hello everyone"
 ```
-```
 
 ### Decorating custom `dspy.Module` classes
 
-When applied to a class, `@self_correcting` automatically walks all child attributes during `__init__` and wraps any `dspy.Predict` or `dspy.COTS` instances:
+When applied to a class, `@self_correcting` automatically walks all child attributes during `__init__` and wraps any `dspy.Predict` or `dspy.ChainOfThought` instances:
 
 ```python
 @self_correcting(schema=CodeOutput, max_retries=3)

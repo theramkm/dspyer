@@ -162,28 +162,13 @@ For nested module structures (e.g. executing several `@self_correcting` function
 The pretty trace renderer displays skimmable headers showing the final status (`✓ corrected`, `✗ FAILED`, or `✓ passed`), failed fields, call duration, and auto-truncated field values (capping strings and lists/dicts at 80 characters to keep stdout clean):
 
 ```text
-==================================================
-           dspyer Self-Correction Trace
-==================================================
-Target: Synthesizer
-Final Status: ✓ corrected
-Failed Fields: citations
-Duration: 0.45s
-Attempts: 2
---------------------------------------------------
-
-Attempt 1 [Synthesizer] (duration: 0.12s) - Status: ✗ FAILED
-  Failed Fields: citations
-  Pydantic Validation Error:
-    Field 'citations': Answer must cite at least one source. (Value got: [])
-  Outputs:
-    answer = 'Apache-2.0.'
-    citations = []
-
-Attempt 2 [Synthesizer] (duration: 0.33s) - Status: ✓ SUCCESS
-  Outputs:
-    answer = 'Apache-2.0 [doc_1].'
-    citations = ['doc_1']
-==================================================
+dspyer · answer · 2 attempts · 0.91s · ✓ corrected [failed fields: citations]
+────────────────────────────────────────────────────────────────────────
+attempt 1 [Answer]  ✗ validation failed (0.42s)
+   citations       Answer must cite at least one source   got: []
+   feedback sent → "Field 'citations': Answer must cite at least one source (Value got: [])"
+attempt 2 [Answer]  ✓ passed (0.49s)
+   text = 'Apache-2.0 [doc_1].'   citations = ['doc_1']
+────────────────────────────────────────────────────────────────────────
 ```
 

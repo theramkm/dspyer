@@ -89,7 +89,7 @@ print(result.text)       # Apache-2.0 [doc_1].
 print(result.citations)  # ['doc_1']
 ```
 
-That's the whole feature in one decorator: a typed result you can trust, with the retry-and-repair loop handled for you. To watch it happen, set `DSPYER_TRACE=1` (see [Observable self-correction](#observable-self-correction)).
+That's the whole feature in one decorator: a typed result you can trust, with the retry-and-repair loop handled for you. To watch it happen, set `DSPYER_TRACE=1` (see [Observable self-correction](#4-observable-self-correction)).
 
 To run the same thing against a real provider (OpenAI, Gemini, Anthropic, or a local Ollama model), see [`examples/quickstart.py`](https://github.com/theramkm/dspyer/blob/main/examples/quickstart.py).
 

@@ -61,3 +61,6 @@ async for event in program.astream(query="Find details on topic X"):
 *   `node_start`: Dispatched immediately before a node executes.
 *   `node_end`: Dispatched after a node successfully completes, including its validated state patch.
 *   `validation_error`: Dispatched when a node output violates its Pydantic contract, triggering a self-correction retry.
+
+> [!NOTE]
+> Tracing configurations (such as `trace=True`, `on_trace` callbacks, and the `DSPYER_TRACE` console printer) currently monitor synchronous and asynchronous execution calls (`forward` and `aforward`). Tracing attributes and telemetry aggregation are not supported on `astream` event generators.
