@@ -54,7 +54,7 @@ This aggregates total runs, successes, failures, retry rates, and ranks the most
 
 Self-correction is a powerful runtime feature, but it adds latency. We can convert self-corrected runs into permanent training examples to fine-tune the model so that it succeeds on the *first* attempt.
 
-# Recording Successful Retries
+### Recording Successful Retries
 
 Pass `dataset_log_path` to your graph compiler or decorator. If a node fails validation initially but eventually succeeds after retries, `dspyer` logs the initial input and the final corrected output:
 
