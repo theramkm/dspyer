@@ -172,3 +172,73 @@ attempt 2 [Answer]  ✓ passed (0.49s)
 ────────────────────────────────────────────────────────────────────────
 ```
 
+---
+
+## 5. Inspecting Traces Programmatically
+
+`get_trace(result)` (or `get_trace(exception)` on failure) returns a `SelfCorrectionTrace`. Use it to inspect exactly what happened during a self-correcting run, without parsing console output.
+
+### `SelfCorrectionTrace`
+
+| Member | Type | Description |
+|---|---|---|
+| `name` | `str` | Name of the decorated function or compiled node. |
+| `attempts` | `list[Attempt]` | One entry per execution attempt, in order. |
+| `duration_s` | `float` | Total wall-clock time across all attempts. |
+| `corrected` | `bool` (property) | `True` if an early attempt failed but a later one succeeded. |
+| `failed` | `bool` (property) | `True` if every attempt failed (retries exhausted). |
+| `retries` | `int` (property) | Number of retry attempts beyond the first call. |
+| `failed_fields` | `list[str]` (property) | Unique dot-notated field paths that failed validation at any point. |
+| `as_dict()` | `dict` | JSON-serializable form, for logging or shipping to your own telemetry stack. |
+| `pretty_string()` | `str` | The rendered, human-readable trace (same format the console printer uses). |
+| `print()` | `None` | Prints `pretty_string()` to `sys.stderr`. |
+
+### `Attempt`
+
+Each item in `trace.attempts` captures one iteration of the self-correction loop.
+
+| Field | Type | Description |
+|---|---|---|
+| `number` | `int` | 1-indexed attempt number. |
+| `node_name` | `str \| None` | The node/schema this attempt ran for (used in the `[node_name]` prefix). |
+| `success` | `bool` | Whether this attempt passed validation. |
+| `duration_s` | `float` | Time spent on this attempt's model call. |
+| `error_feedback` | `str \| None` | The natural-language feedback sent back to the model after a failure (`None` on the final successful attempt). |
+| `validation_errors` | `list[ValidationErrorDetail]` | The specific fields that failed on this attempt. |
+| `outputs` | `dict` | The raw outputs produced on this attempt. |
+
+`ValidationErrorDetail` carries `loc` (field path), `msg` (the validator's message), `type` (Pydantic error type), and `input` (the offending value).
+
+### Worked Example
+
+```python
+from dspyer import self_correcting, get_trace
+from pydantic import BaseModel, Field
+
+class Answer(BaseModel):
+    text: str
+    citations: list[str]
+
+@self_correcting(schema=Answer, max_retries=3, trace=True)
+def answer(question: str) -> Answer:
+    """Answer the question and cite your sources."""
+    pass
+
+try:
+    result = answer(question="What license is dspyer under?")
+    trace = get_trace(result)
+except Exception as err:
+    trace = get_trace(err)   # the trace is attached to the exception too
+
+if trace:
+    print(f"corrected={trace.corrected} failed={trace.failed} retries={trace.retries}")
+    print(f"fields that failed at any point: {trace.failed_fields}")
+
+    for a in trace.attempts:
+        status = "ok" if a.success else "failed"
+        print(f"  attempt {a.number} [{a.node_name}] {status} ({a.duration_s:.2f}s)")
+        for e in a.validation_errors:
+            print(f"     {'.'.join(map(str, e.loc))}: {e.msg}  (got: {e.input!r})")
+```
+
+
