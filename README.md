@@ -30,6 +30,15 @@ Every LLM call in a real agent ends up wrapped in the same defensive code: parse
 
 > **Honest scope:** dspyer does not reinvent optimization. The optimizer is DSPy's. dspyer's job is the runtime around it, schema-validated self-correction, observable retries, and keeping a real agent graph optimizable with far less boilerplate. If you have a single simple call and won't optimize it, you may not need dspyer at all, and that's fine.
 
+## What you get
+
+- **Typed, validated outputs** - wrap any LLM step in a Pydantic schema; malformed output never reaches your code.
+- **Automatic self-correction** - on a validation failure, dspyer feeds the error back to the model and retries until it conforms. ([jump](#quickstart-self-correction-in-30-seconds-no-api-key))
+- **Observable retries** - watch every failure, the feedback sent, and the repair, with one env var or programmatically via `get_trace()`. The part DSPy doesn't give you. ([jump](#observable-self-correction))
+- **One-call prompt optimization** - each step compiles to a standard `dspy.Module`, so any DSPy optimizer can tune it; then save and load. ([jump](#prompt-optimization-tune-save-load))
+- **LangGraph drop-in** - no rewrite; only your reasoning nodes get wrapped. ([jump](#drop-into-your-existing-langgraph-no-rewrite))
+- **Works anywhere** - sync, async, and class forms; OpenAI / Anthropic / Gemini / local Ollama; pooled-connection `DirectLM` runtime for lower latency.
+
 ---
 
 ## Install
@@ -89,7 +98,7 @@ print(result.text)       # Apache-2.0 [doc_1].
 print(result.citations)  # ['doc_1']
 ```
 
-That's the whole feature in one decorator: a typed result you can trust, with the retry-and-repair loop handled for you. To watch it happen, set `DSPYER_TRACE=1` (see [Observable self-correction](#4-observable-self-correction)).
+That's the whole feature in one decorator: a typed result you can trust, with the retry-and-repair loop handled for you. To watch it happen, set `DSPYER_TRACE=1` (see [Observable self-correction](#observable-self-correction)).
 
 To run the same thing against a real provider (OpenAI, Gemini, Anthropic, or a local Ollama model), see [`examples/quickstart.py`](https://github.com/theramkm/dspyer/blob/main/examples/quickstart.py).
 
@@ -97,7 +106,7 @@ To run the same thing against a real provider (OpenAI, Gemini, Anthropic, or a l
 
 ## Core capabilities
 
-### 1. The decorator: sync, async, and class forms
+### The decorator: sync, async, and class forms
 
 The decorator works on async functions and on `dspy.Module` classes too.
 
@@ -126,51 +135,7 @@ class Solver(dspy.Module):
         return self.solve(question=question)
 ```
 
-### 2. Prompt optimization (tune, save, load)
-
-Because each step compiles to a standard `dspy.Module`, you optimize it with any DSPy teleprompter against your own metric, then save and load the result. The optimizer is DSPy's; dspyer just makes the step reachable from your graph.
-
-```python
-from dspy.teleprompt import BootstrapFewShot
-
-def metric(example, pred, trace=None) -> bool:
-    return example.sentiment.lower() == pred.sentiment.lower()
-
-optimizer = BootstrapFewShot(metric=metric, max_bootstrapped_demos=2)
-optimized = optimizer.compile(program, trainset=trainset)
-
-optimized.save_prompts("agent_config.json")     # save tuned instructions
-production_program.load_prompts("agent_config.json")  # load in prod
-```
-
-> The bundled [`examples/benchmark.py`](https://github.com/theramkm/dspyer/blob/main/examples/benchmark.py) uses a **simulated backend** to illustrate the optimize-measure loop end to end (it shows a 60% -> 90% lift on a toy sentiment task). The number is illustrative, not a benchmark of real-model accuracy. Swap in a real model and your own held-out metric to measure the actual lift on your task.
-
-### 3. Drop into your existing LangGraph (no rewrite)
-
-You don't replace your orchestrator. Compile individual dspyer nodes and call them inside the LangGraph nodes you already have. Your deterministic and tool nodes stay plain Python; only the reasoning nodes get wrapped.
-
-```python
-compiled_agent = AgentTranspiler.compile(graph)
-
-def run_agent_node(state):
-    pred = compiled_agent(query=state["user_query"])
-    return {"agent_response": pred.answer, "citations": pred.citations}
-```
-
-You can also scaffold an existing LangGraph `StateGraph` into a `dspyer.Graph`, preserving non-LLM nodes as native passthroughs:
-
-```python
-from dspyer import from_langgraph
-
-node_mappings = {
-    "Clean": StatefulNode("Clean", CleanInput, CleanOutput, instructions="Normalize the query"),
-    "Solve": StatefulNode("Solve", SolveInput, SolveOutput, instructions="Answer the query"),
-}
-graph = from_langgraph(builder, node_mappings=node_mappings)
-program = AgentTranspiler.compile(graph)
-```
-
-### 4. Observable self-correction
+### Observable self-correction
 
 This is the part DSPy and most agent stacks don't give you: a self-correction loop you can actually watch. When a step fails validation and repairs itself, dspyer can show you exactly what happened, what failed, what feedback it sent the model, and what came back.
 
@@ -230,7 +195,51 @@ def answer(question: str) -> Answer:
 
 > Tracing covers the self-correction loop on sync and async calls. It is not currently attached to `astream` event streams.
 
-### 5. Validation reporting
+### Prompt optimization (tune, save, load)
+
+Because each step compiles to a standard `dspy.Module`, you optimize it with any DSPy teleprompter against your own metric, then save and load the result. The optimizer is DSPy's; dspyer just makes the step reachable from your graph.
+
+```python
+from dspy.teleprompt import BootstrapFewShot
+
+def metric(example, pred, trace=None) -> bool:
+    return example.sentiment.lower() == pred.sentiment.lower()
+
+optimizer = BootstrapFewShot(metric=metric, max_bootstrapped_demos=2)
+optimized = optimizer.compile(program, trainset=trainset)
+
+optimized.save_prompts("agent_config.json")     # save tuned instructions
+production_program.load_prompts("agent_config.json")  # load in prod
+```
+
+> The bundled [`examples/benchmark.py`](https://github.com/theramkm/dspyer/blob/main/examples/benchmark.py) uses a **simulated backend** to illustrate the optimize-measure loop end to end (it shows a 60% -> 90% lift on a toy sentiment task). The number is illustrative, not a benchmark of real-model accuracy. Swap in a real model and your own held-out metric to measure the actual lift on your task.
+
+### Drop into your existing LangGraph (no rewrite)
+
+You don't replace your orchestrator. Compile individual dspyer nodes and call them inside the LangGraph nodes you already have. Your deterministic and tool nodes stay plain Python; only the reasoning nodes get wrapped.
+
+```python
+compiled_agent = AgentTranspiler.compile(graph)
+
+def run_agent_node(state):
+    pred = compiled_agent(query=state["user_query"])
+    return {"agent_response": pred.answer, "citations": pred.citations}
+```
+
+You can also scaffold an existing LangGraph `StateGraph` into a `dspyer.Graph`, preserving non-LLM nodes as native passthroughs:
+
+```python
+from dspyer import from_langgraph
+
+node_mappings = {
+    "Clean": StatefulNode("Clean", CleanInput, CleanOutput, instructions="Normalize the query"),
+    "Solve": StatefulNode("Solve", SolveInput, SolveOutput, instructions="Answer the query"),
+}
+graph = from_langgraph(builder, node_mappings=node_mappings)
+program = AgentTranspiler.compile(graph)
+```
+
+### Validation reporting
 
 Log per-run validation outcomes, then generate a summary of where your nodes fail.
 
@@ -250,7 +259,7 @@ Node: Synthesizer
     - answer:    2 errors (33.3%)
 ```
 
-### 6. Self-correction dataset flywheel
+### Self-correction dataset flywheel
 
 Capture successful self-corrections as input/output pairs, then replay them as a training set, so the model's own repairs become tomorrow's few-shot examples.
 
@@ -261,7 +270,7 @@ from dspyer import load_logged_dataset
 trainset = load_logged_dataset(dataset_log_path="logs/flywheel.jsonl", input_keys=["query"])
 ```
 
-### 7. Async & streaming
+### Async & streaming
 
 ```python
 result = await program.aforward(query="Alice and Bob went to Paris")
@@ -270,7 +279,7 @@ async for event in program.astream(query="Alice and Bob went to Paris"):
     print(f"{event['event']} · {event.get('node')}")
 ```
 
-### 8. Pluggable storage adapters
+### Pluggable storage adapters
 
 Swap the default thread-pooled file logger for your own backend by implementing `BaseStorageAdapter`.
 
@@ -284,6 +293,17 @@ class CustomDatabaseAdapter(BaseStorageAdapter):
         await db.async_insert(target, line)
 
 set_storage_adapter(CustomDatabaseAdapter())
+```
+
+### Lower-latency LM runtime (`DirectLM`)
+
+For latency-sensitive workloads, `DirectLM` is a pooled-connection runtime that talks to providers directly and bypasses LiteLLM. It works with Ollama, OpenAI, Anthropic, and Gemini, and supports both sync and async calls.
+
+```python
+from dspyer import DirectLM
+import dspy
+
+dspy.configure(lm=DirectLM(model="ollama/llama3", api_base="http://localhost:11434"))
 ```
 
 ---
