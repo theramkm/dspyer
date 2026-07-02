@@ -34,7 +34,7 @@ attempt 2 [Answer]  ✓ passed (0.49s)
 
 ## 2. Programmatic Trace Extraction
 
-Pass `trace=True` to the `@self_correcting` decorator, or `_trace=True` to the transpiled graph compiler program. This attaches a `SelfCorrectionTrace` instance to returning models, prediction results, or raised exceptions.
+Pass `trace=True` to the `@self_correcting` decorator, or `_trace=True` to the compiled graph program. This attaches a `SelfCorrectionTrace` instance to returning models, prediction results, or raised exceptions.
 
 Use `dspyer.get_trace()` to extract the trace uniformly:
 

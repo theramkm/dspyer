@@ -24,11 +24,11 @@ uv add dspyer --optional otel --optional langgraph
 
 ---
 
-## Core Concept: Stateful Graph Transpilation
+## Core Concept: Stateful Graph Compilation
 
 Unlike traditional DSPy programs that require you to explicitly declare signatures and predictors upfront, `dspyer` lets you define your workflow as a state machine where each step (or node) is associated with an input schema, an output schema, and instructions.
 
-`dspyer` compiles this topology under the hood into a single declarative [TranspiledAgentProgram](https://github.com/theramkm/dspyer/blob/main/dspyer/compiler.py) subclass. Every dynamic predictor is registered as a model parameter, allowing DSPy teleprompters (optimizers) to tune your prompts automatically.
+`dspyer` compiles this topology under the hood into a standard `dspy.Module` subclass. Every dynamic predictor is registered as a model parameter, allowing DSPy teleprompters (optimizers) to tune your prompts automatically.
 
 ---
 

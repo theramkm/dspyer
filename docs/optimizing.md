@@ -1,6 +1,6 @@
 # Optimizing Prompts
 
-Prompt engineering is often a manual process of trial and error. The primary benefit of transpiling your workflows into DSPy modules with `dspyer` is that it allows you to optimize your prompts programmatically using standard DSPy optimizers (teleprompters).
+Prompt engineering is often a manual process of trial and error. The primary benefit of compiling your workflows into DSPy modules with `dspyer` is that it allows you to optimize your prompts programmatically using standard DSPy optimizers (teleprompters).
 
 This guide walks through defining evaluation metrics, compiling (optimizing) your steps against a dataset, saving/loading the tuned instructions, and bootstrapping from self-correction logs.
 
